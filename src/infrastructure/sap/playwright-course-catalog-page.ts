@@ -1,4 +1,4 @@
-import { chromium } from "playwright";
+import { chromium, type Page } from "playwright";
 
 import type { CourseCatalogPage } from "../../application/ports/course-catalog-page.js";
 import {
@@ -6,6 +6,8 @@ import {
   sapSemesterLabels,
   type Semester,
 } from "../../domain/value-objects/semester.js";
+import { PlaywrightSapCollectionPage } from "./playwright-sap-collection-page.js";
+import type { SapCollectionPage } from "./sap-collection-page.js";
 
 interface ClickLocator {
   click(): Promise<unknown>;
@@ -15,6 +17,10 @@ interface BrowserPage {
   goto(url: string, options: { waitUntil: "domcontentloaded" }): Promise<unknown>;
   locator(selector: string): ClickLocator;
   screenshot(options: { path: string; fullPage: boolean }): Promise<unknown>;
+  waitForFunction(
+    callback: (input: { selector: string; itemKey: string }) => boolean,
+    input: { selector: string; itemKey: string },
+  ): Promise<unknown>;
 }
 
 interface BrowserInstance {
@@ -83,6 +89,13 @@ export class PlaywrightCourseCatalogPage implements CourseCatalogPage {
     this.browser = null;
   }
 
+  getCollectionPage(): SapCollectionPage {
+    if (!this.page) {
+      throw new Error("SAP 강좌 페이지가 열리지 않았습니다.");
+    }
+    return new PlaywrightSapCollectionPage(this.page as unknown as Page);
+  }
+
   private async selectComboOption(buttonSelector: string, itemKey: string): Promise<void> {
     if (!this.page) {
       throw new Error("SAP 강좌 페이지가 열리지 않았습니다.");
@@ -92,6 +105,13 @@ export class PlaywrightCourseCatalogPage implements CourseCatalogPage {
     await this.page
       .locator(`${this.options.selectors.optionItems}[data-itemkey="${itemKey}"]`)
       .click();
+    const inputSelector = buttonSelector.replace(/-btn$/, "");
+    await this.page.waitForFunction(
+      ({ selector, itemKey: expectedKey }) =>
+        document.querySelector(selector)?.getAttribute("lsdata")?.includes(`4:'${expectedKey}'`) ??
+        false,
+      { selector: inputSelector, itemKey },
+    );
   }
 }
 

@@ -17,6 +17,7 @@ describe("PlaywrightCourseCatalogPage", () => {
         return semesterOption;
       }),
       screenshot: vi.fn().mockResolvedValue(undefined),
+      waitForFunction: vi.fn().mockResolvedValue(undefined),
     };
     const browser = {
       newPage: vi.fn().mockResolvedValue(page),
