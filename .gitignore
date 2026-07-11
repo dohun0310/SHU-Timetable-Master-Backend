@@ -9,5 +9,6 @@ generated/*.json
 coverage/
 playwright-report/
 test-results/
+artifacts/
 *.log
 .DS_Store
