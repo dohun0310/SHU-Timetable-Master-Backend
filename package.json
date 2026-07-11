@@ -2,8 +2,29 @@
   "name": "shu-timetable-master-backend",
   "version": "0.1.0",
   "private": true,
+  "type": "module",
   "packageManager": "yarn@4.17.1",
+  "scripts": {
+    "build": "yarn build:server",
+    "build:server": "tsc -p tsconfig.build.json",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "lint": "eslint .",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
   "engines": {
     "node": ">=24.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.1.1",
+    "eslint": "^10.6.0",
+    "prettier": "^3.9.5",
+    "tsx": "^4.23.0",
+    "typescript": "^6.0.0",
+    "typescript-eslint": "^8.63.0",
+    "vitest": "^4.1.10"
   }
 }
