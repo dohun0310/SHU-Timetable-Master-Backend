@@ -1,15 +1,19 @@
 import { chromium } from "playwright";
 
 import type { CourseCatalogPage } from "../../application/ports/course-catalog-page.js";
-import { sapSemesterLabels, type Semester } from "../../domain/value-objects/semester.js";
+import {
+  sapSemesterKeys,
+  sapSemesterLabels,
+  type Semester,
+} from "../../domain/value-objects/semester.js";
 
-interface SelectLocator {
-  selectOption(options: { label: string }): Promise<unknown>;
+interface ClickLocator {
+  click(): Promise<unknown>;
 }
 
 interface BrowserPage {
   goto(url: string, options: { waitUntil: "domcontentloaded" }): Promise<unknown>;
-  locator(selector: string): SelectLocator;
+  locator(selector: string): ClickLocator;
   screenshot(options: { path: string; fullPage: boolean }): Promise<unknown>;
 }
 
@@ -23,8 +27,9 @@ interface BrowserLauncher {
 }
 
 export interface SapPageSelectors {
-  academicYear: string;
-  semester: string;
+  academicYearButton: string;
+  semesterButton: string;
+  optionItems: string;
 }
 
 export interface PlaywrightCourseCatalogPageOptions {
@@ -59,12 +64,11 @@ export class PlaywrightCourseCatalogPage implements CourseCatalogPage {
     }
 
     try {
-      await this.page
-        .locator(this.options.selectors.academicYear)
-        .selectOption({ label: String(academicYear) });
-      await this.page
-        .locator(this.options.selectors.semester)
-        .selectOption({ label: sapSemesterLabels[semester] });
+      await this.selectComboOption(this.options.selectors.academicYearButton, String(academicYear));
+      await this.selectComboOption(
+        this.options.selectors.semesterButton,
+        sapSemesterKeys[semester],
+      );
     } catch (error) {
       await this.page.screenshot({ path: this.failureScreenshotPath, fullPage: true });
       throw new Error(`SAP 조회 기간 선택 실패: ${academicYear} ${sapSemesterLabels[semester]}`, {
@@ -78,4 +82,21 @@ export class PlaywrightCourseCatalogPage implements CourseCatalogPage {
     this.page = null;
     this.browser = null;
   }
+
+  private async selectComboOption(buttonSelector: string, itemKey: string): Promise<void> {
+    if (!this.page) {
+      throw new Error("SAP 강좌 페이지가 열리지 않았습니다.");
+    }
+
+    await this.page.locator(buttonSelector).click();
+    await this.page
+      .locator(`${this.options.selectors.optionItems}[data-itemkey="${itemKey}"]`)
+      .click();
+  }
 }
+
+export const shinhanSapPageSelectors: SapPageSelectors = {
+  academicYearButton: "#WD25-btn",
+  semesterButton: "#WD76-btn",
+  optionItems: '[ct="LIB_I"]',
+};

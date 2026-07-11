@@ -3,12 +3,19 @@ import { describe, expect, it, vi } from "vitest";
 import { PlaywrightCourseCatalogPage } from "../../../src/infrastructure/sap/playwright-course-catalog-page.js";
 
 describe("PlaywrightCourseCatalogPage", () => {
-  it("opens the configured URL and selects the academic period", async () => {
-    const yearSelect = { selectOption: vi.fn().mockResolvedValue(undefined) };
-    const semesterSelect = { selectOption: vi.fn().mockResolvedValue(undefined) };
+  it("opens the configured URL and selects the academic period by stable SAP keys", async () => {
+    const yearButton = { click: vi.fn().mockResolvedValue(undefined) };
+    const semesterButton = { click: vi.fn().mockResolvedValue(undefined) };
+    const yearOption = { click: vi.fn().mockResolvedValue(undefined) };
+    const semesterOption = { click: vi.fn().mockResolvedValue(undefined) };
     const page = {
       goto: vi.fn().mockResolvedValue(undefined),
-      locator: vi.fn((selector: string) => (selector === "#year" ? yearSelect : semesterSelect)),
+      locator: vi.fn((selector: string) => {
+        if (selector === "#year-button") return yearButton;
+        if (selector === "#semester-button") return semesterButton;
+        if (selector.includes('data-itemkey="2026"')) return yearOption;
+        return semesterOption;
+      }),
       screenshot: vi.fn().mockResolvedValue(undefined),
     };
     const browser = {
@@ -19,7 +26,11 @@ describe("PlaywrightCourseCatalogPage", () => {
     const catalogPage = new PlaywrightCourseCatalogPage({
       url: "https://example.com/catalog",
       headless: true,
-      selectors: { academicYear: "#year", semester: "#semester" },
+      selectors: {
+        academicYearButton: "#year-button",
+        semesterButton: "#semester-button",
+        optionItems: '[ct="LIB_I"]',
+      },
       browserType,
     });
 
@@ -31,8 +42,12 @@ describe("PlaywrightCourseCatalogPage", () => {
     expect(page.goto).toHaveBeenCalledWith("https://example.com/catalog", {
       waitUntil: "domcontentloaded",
     });
-    expect(yearSelect.selectOption).toHaveBeenCalledWith({ label: "2026" });
-    expect(semesterSelect.selectOption).toHaveBeenCalledWith({ label: "2nd Semester" });
+    expect(yearButton.click).toHaveBeenCalledOnce();
+    expect(semesterButton.click).toHaveBeenCalledOnce();
+    expect(yearOption.click).toHaveBeenCalledOnce();
+    expect(semesterOption.click).toHaveBeenCalledOnce();
+    expect(page.locator).toHaveBeenCalledWith('[ct="LIB_I"][data-itemkey="2026"]');
+    expect(page.locator).toHaveBeenCalledWith('[ct="LIB_I"][data-itemkey="210"]');
     expect(browser.close).toHaveBeenCalledOnce();
   });
 
@@ -40,7 +55,11 @@ describe("PlaywrightCourseCatalogPage", () => {
     const catalogPage = new PlaywrightCourseCatalogPage({
       url: "https://example.com/catalog",
       headless: true,
-      selectors: { academicYear: "#year", semester: "#semester" },
+      selectors: {
+        academicYearButton: "#year-button",
+        semesterButton: "#semester-button",
+        optionItems: '[ct="LIB_I"]',
+      },
       browserType: { launch: vi.fn() },
     });
 

@@ -20,6 +20,13 @@ export const sapSemesterLabels: Record<Semester, string> = {
   WINTER: "Winter",
 };
 
+export const sapSemesterKeys: Record<Semester, string> = {
+  FIRST: "110",
+  SUMMER: "120",
+  SECOND: "210",
+  WINTER: "220",
+};
+
 export function parseSemester(value: string): Semester {
   const result = semesterSchema.safeParse(value);
 
