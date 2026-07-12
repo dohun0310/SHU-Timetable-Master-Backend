@@ -27,13 +27,18 @@ describe("PlaywrightSapCollectionPage", () => {
       <div ct="LIB_I" data-itemkey="a">Category A</div>
       <div id="option-b" ct="LIB_I" data-itemkey="b">Category B</div>
       <button ct="B">조회</button>
-      <table ct="ST"><tbody id="table-contentTBody">
-        <tr rr="1"><td cc="0">이론</td><td cc="1"></td><td cc="2">필수</td><td cc="3"></td><td cc="4">GE61002</td></tr>
+      <table ct="ST"><thead><tr>
+        <th><span ct="CP">강의유형</span></th><th><span ct="CP">과목번호</span></th>
+        <th><span ct="CP">담당교수</span></th><th><span ct="CP">강의시간</span></th>
+        <th><span ct="CP">주관학과</span></th>
+      </tr></thead><tbody id="table-contentTBody">
+        <tr rr="1"><td cc="0">이론</td><td cc="1">GE61002</td><td cc="2">홍길동</td><td cc="3">월 1-2</td><td cc="4">리나시타교양대학</td></tr>
       </tbody></table>
       <script>
         window.application = {
           lightspeed: {
             oGetControlById: () => ({
+              getValue: () => document.querySelector('#filter').getAttribute('lsdata').match(/4:'([^']*)'/)?.[1] ?? '',
               setText: (value) => { document.querySelector('#filter').value = value; },
               setValue: (value) => { document.querySelector('#filter').setAttribute('lsdata', "{4:'" + value + "'}"); },
             }),
@@ -49,7 +54,24 @@ describe("PlaywrightSapCollectionPage", () => {
     ]);
     await collectionPage.selectFilterOption(0, "b");
     await expect(collectionPage.readRows()).resolves.toEqual([
-      ["이론", "", "필수", "", "GE61002"],
+      [
+        "이론",
+        "GE61002",
+        "홍길동",
+        "월 1-2",
+        "리나시타교양대학",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+        "",
+      ],
     ]);
 
     await page.close();

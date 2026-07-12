@@ -62,6 +62,10 @@ export class ShinhanSapCourseCollector implements CourseSource {
         departments.length > 1 ? [...departments.slice(1), departments[0]!] : departments;
 
       for (const department of orderedDepartments) {
+        await this.page.reset();
+        await this.page.selectTab(tabs.department.index);
+        await this.page.selectFilterOption(0, college.key);
+        await this.page.listFilterOptions(1);
         await this.page.selectFilterOption(1, department.key);
         await this.searchAndAppend(tabs.department, target);
       }
@@ -84,6 +88,10 @@ export class ShinhanSapCourseCollector implements CourseSource {
         concretePrograms.length > 0 ? concretePrograms : availablePrograms,
       );
       for (const program of programs) {
+        await this.page.reset();
+        await this.page.selectTab(tabs.microDegree.index);
+        await this.page.selectFilterOption(0, type.key);
+        await this.page.listFilterOptions(1);
         await this.page.selectFilterOption(1, program.key);
         await this.searchAndAppend(tabs.microDegree, target);
       }

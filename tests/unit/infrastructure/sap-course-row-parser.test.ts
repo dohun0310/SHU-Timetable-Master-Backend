@@ -10,13 +10,13 @@ describe("SapCourseRowParser", () => {
       parser.parse(
         [
           "이론",
-          "교양교육원",
-          "필수",
-          "",
           "GE61002",
           "홍길동",
-          "리나시타교양대학",
           "월 1-2",
+          "리나시타교양대학",
+          "필수",
+          "",
+          "교양교육원",
           "40",
           "001",
           "",
@@ -46,6 +46,45 @@ describe("SapCourseRowParser", () => {
       theoryHours: 1,
       practiceHours: 0,
       hours: 1,
+    });
+  });
+
+  it("maps the major and micro-degree table layout", () => {
+    expect(
+      parser.parse(
+        [
+          "",
+          "KP30002",
+          "배진택임채훈",
+          "화 7-9",
+          "K-POP학과",
+          "전필",
+          "",
+          "K-POP학과",
+          "24",
+          "001",
+          "",
+          "",
+          "",
+          "실행",
+          "3/1/2",
+          "캡스톤디자인(졸업공연제작)",
+        ],
+        { tab: "학과/전공", category: "MAJOR" },
+      ),
+    ).toMatchObject({
+      courseCode: "KP30002",
+      professor: "배진택임채훈",
+      classTime: "화 7-9",
+      majorName: "K-POP학과",
+      requirement: "전필",
+      departmentName: "K-POP학과",
+      capacity: 24,
+      classNumber: "001",
+      courseName: "캡스톤디자인(졸업공연제작)",
+      credits: 3,
+      theoryHours: 1,
+      practiceHours: 2,
     });
   });
 

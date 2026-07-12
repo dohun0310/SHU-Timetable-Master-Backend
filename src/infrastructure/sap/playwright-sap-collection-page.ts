@@ -68,21 +68,17 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
   async selectFilterOption(filterIndex: number, key: string): Promise<void> {
     const id = await this.findFilterInputId(filterIndex);
     if (!id) throw new Error(`SAP 필터 ${filterIndex}의 ID를 찾을 수 없습니다.`);
-    const input = this.page.locator(`#${id}`);
-    const currentData = await input.getAttribute("lsdata");
-    const isCurrent = currentData?.includes(`4:'${key}'`) ?? false;
-    if (isCurrent) return;
-    let label = this.filterLabels.get(`${filterIndex}:${key}`) ?? (await input.inputValue()).trim();
+    const currentValue = await this.getComboValue(id);
+    if (currentValue === key) return;
 
-    if (!this.filterLabels.has(`${filterIndex}:${key}`)) {
-      await this.page.locator(`#${id}-btn`).evaluate((element) => (element as HTMLElement).click());
-      const option = this.page.locator(`[ct="LIB_I"][data-itemkey="${key}"]:visible`);
-      label = (await option.textContent())?.trim() ?? "";
-      if (!label) throw new Error(`SAP 필터 옵션 ${key}의 라벨을 찾을 수 없습니다.`);
-      await this.page.keyboard.press("Escape");
+    let label = this.filterLabels.get(`${filterIndex}:${key}`);
+    if (!label) {
+      await this.listFilterOptions(filterIndex);
+      label = this.filterLabels.get(`${filterIndex}:${key}`);
     }
+    if (!label) throw new Error(`SAP 필터 옵션 ${key}의 라벨을 찾을 수 없습니다.`);
 
-    const possibleResponse = this.waitForSapResponse(1_000).catch(() => null);
+    const possibleResponse = this.waitForSapResponse(30_000).catch(() => null);
     await this.page.evaluate(
       ({ comboId, itemKey, itemLabel }) => {
         const app = (
@@ -103,8 +99,16 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
       },
       { comboId: id, itemKey: key, itemLabel: label },
     );
-    await possibleResponse;
+
+    await Promise.race([possibleResponse, this.page.waitForTimeout(1_000)]);
     await this.waitForSapIdle();
+    const updatedId = await this.findFilterInputId(filterIndex);
+    const updatedValue = updatedId ? await this.getComboValue(updatedId) : null;
+    if (updatedValue !== key) {
+      throw new Error(
+        `SAP 필터 ${filterIndex}에 옵션 ${key}를 적용하지 못했습니다. 실제 값: ${updatedValue ?? "없음"}`,
+      );
+    }
   }
 
   async search(timeoutMs = 2_000): Promise<boolean> {
@@ -129,17 +133,57 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
   }
 
   async readRows(): Promise<string[][]> {
-    const rows = await this.page
-      .locator('[ct="ST"]:visible tbody[id$="-contentTBody"] tr[rr]')
-      .evaluateAll((elements) =>
-        elements.map((element) =>
-          [...element.querySelectorAll<HTMLTableCellElement>("td[cc]")]
-            .sort((left, right) => Number(left.getAttribute("cc")) - Number(right.getAttribute("cc")))
-            .map((cell) => cell.textContent?.replace(/\u00a0/g, " ").replace(/\s+/g, " ").trim() ?? ""),
-        ),
+    const canonicalHeaders = [
+      "강의유형",
+      "과목번호",
+      "담당교수",
+      "강의시간",
+      "주관학과",
+      "이수구분",
+      "PF/PN여부",
+      "전공",
+      "정원",
+      "분반",
+      "수강자격",
+      "수강유의사항",
+      "수업계획서 영상",
+      "계획",
+      "학점/이론/실습",
+      "과목명",
+    ];
+    const table = this.page.locator('[ct="ST"]:visible').first();
+    const rows = await table.evaluate((element, expectedHeaders) => {
+      const visibleHeaders = [...element.querySelectorAll<HTMLElement>('[ct="CP"]')].map(
+        (header) =>
+          (header.textContent ?? "")
+            .replace(/\u00a0/g, " ")
+            .replace(/\s+/g, " ")
+            .trim(),
       );
+      const sourceIndex = new Map(visibleHeaders.map((header, index) => [header, index]));
 
-    return rows.filter((cells) => (cells[4] ?? "").length > 0);
+      return [...element.querySelectorAll<HTMLElement>('tbody[id$="-contentTBody"] tr[rr]')].map(
+        (row) => {
+          const sourceCells = [...row.querySelectorAll<HTMLTableCellElement>("td[cc]")]
+            .sort(
+              (left, right) =>
+                Number(left.getAttribute("cc")) - Number(right.getAttribute("cc")),
+            )
+            .map((cell) =>
+              (cell.textContent ?? "")
+                .replace(/\u00a0/g, " ")
+                .replace(/\s+/g, " ")
+                .trim(),
+            );
+          return expectedHeaders.map((header) => {
+            const index = sourceIndex.get(header);
+            return index === undefined ? "" : (sourceCells[index] ?? "");
+          });
+        },
+      );
+    }, canonicalHeaders);
+
+    return rows.filter((cells) => (cells[1] ?? "").length > 0);
   }
 
   private async findFilterInputId(filterIndex: number): Promise<string | null> {
@@ -150,6 +194,21 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
         : elements.slice(3);
       return filters[index]?.id || null;
     }, filterIndex);
+  }
+
+  private getComboValue(id: string): Promise<string> {
+    return this.page.evaluate((comboId) => {
+      const app = (
+        window as unknown as {
+          application: {
+            lightspeed: {
+              oGetControlById(id: string): { getValue(): string };
+            };
+          };
+        }
+      ).application;
+      return app.lightspeed.oGetControlById(comboId).getValue();
+    }, id);
   }
 
   private waitForSapResponse(timeout = 30_000) {
