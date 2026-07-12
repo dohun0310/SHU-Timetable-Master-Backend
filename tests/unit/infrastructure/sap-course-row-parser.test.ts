@@ -90,8 +90,8 @@ describe("SapCourseRowParser", () => {
 
   it("rejects a row without a course code", () => {
     const cells = Array.from({ length: 16 }, () => "");
-    expect(() =>
-      parser.parse(cells, { tab: "기초교양", category: "BASIC_LIBERAL_ARTS" }),
-    ).toThrow("SAP 강좌 행에 과목코드가 없습니다.");
+    expect(() => parser.parse(cells, { tab: "기초교양", category: "BASIC_LIBERAL_ARTS" })).toThrow(
+      "SAP 강좌 행에 과목코드가 없습니다.",
+    );
   });
 });
