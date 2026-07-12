@@ -28,7 +28,7 @@ describe("PlaywrightSapCollectionPage", () => {
       <div id="option-b" ct="LIB_I" data-itemkey="b">Category B</div>
       <button ct="B">조회</button>
       <table ct="ST"><tbody id="table-contentTBody">
-        <tr rr="1"><td cc="0">이론</td><td cc="1"></td><td cc="2">GE61002</td></tr>
+        <tr rr="1"><td cc="0">이론</td><td cc="1"></td><td cc="2">필수</td><td cc="3"></td><td cc="4">GE61002</td></tr>
       </tbody></table>
       <script>
         window.application = {
@@ -48,7 +48,9 @@ describe("PlaywrightSapCollectionPage", () => {
       { key: "b", label: "Category B" },
     ]);
     await collectionPage.selectFilterOption(0, "b");
-    await expect(collectionPage.readRows()).resolves.toEqual([["이론", "", "GE61002"]]);
+    await expect(collectionPage.readRows()).resolves.toEqual([
+      ["이론", "", "필수", "", "GE61002"],
+    ]);
 
     await page.close();
   });

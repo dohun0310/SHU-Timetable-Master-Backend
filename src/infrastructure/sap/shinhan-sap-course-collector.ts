@@ -27,12 +27,14 @@ export class ShinhanSapCourseCollector implements CourseSource {
     const courses: RawCourse[] = [];
 
     await this.page.selectTab(tabs.basic.index);
-    await this.searchAndAppend(tabs.basic, courses);
+    await this.searchAndAppend(tabs.basic, courses, 10_000);
     await this.collectCoreAreas(courses);
     await this.collectCurrentSelection(tabs.core, courses);
-    await this.collectCurrentSelection(tabs.microDegree, courses);
-    await this.collectDepartments(courses);
     await this.collectCurrentSelection(tabs.teaching, courses);
+    await this.page.reset();
+    await this.collectMicroDegrees(courses);
+    await this.page.reset();
+    await this.collectDepartments(courses);
 
     return this.deduplicate(courses);
   }
@@ -52,9 +54,7 @@ export class ShinhanSapCourseCollector implements CourseSource {
     const colleges = await this.page.listFilterOptions(0);
 
     for (const college of colleges) {
-      // 일부 조직은 학과 필터가 없어 조회 후 콤보박스 자체가 사라진다.
-      // 매 조직마다 탭을 다시 열어 동일한 초기 상태에서 시작한다.
-      await this.page.selectTab(tabs.basic.index);
+      await this.page.reset();
       await this.page.selectTab(tabs.department.index);
       await this.page.selectFilterOption(0, college.key);
       const departments = await this.page.listFilterOptions(1);
@@ -68,13 +68,40 @@ export class ShinhanSapCourseCollector implements CourseSource {
     }
   }
 
+  private async collectMicroDegrees(target: RawCourse[]): Promise<void> {
+    await this.page.selectTab(tabs.microDegree.index);
+    const availableTypes = await this.page.listFilterOptions(0);
+    const allType = availableTypes.find((option) => option.key === "" || option.label === "전체");
+    const types = allType ? [allType] : this.currentOptionLast(availableTypes);
+
+    for (const type of types) {
+      await this.page.selectFilterOption(0, type.key);
+      const availablePrograms = await this.page.listFilterOptions(1);
+      const concretePrograms = availablePrograms.filter(
+        (option) => option.key !== "00000000" && option.label !== "전체",
+      );
+      const programs = this.currentOptionLast(
+        concretePrograms.length > 0 ? concretePrograms : availablePrograms,
+      );
+      for (const program of programs) {
+        await this.page.selectFilterOption(1, program.key);
+        await this.searchAndAppend(tabs.microDegree, target);
+      }
+    }
+  }
+
   private async collectCurrentSelection(tab: TabDefinition, target: RawCourse[]): Promise<void> {
     await this.page.selectTab(tab.index);
     this.appendRows(tab, target, await this.page.readRows());
   }
 
-  private async searchAndAppend(tab: TabDefinition, target: RawCourse[]): Promise<void> {
-    await this.page.search();
+  private async searchAndAppend(
+    tab: TabDefinition,
+    target: RawCourse[],
+    timeoutMs?: number,
+  ): Promise<void> {
+    const completed = await this.page.search(timeoutMs);
+    if (!completed) return;
     this.appendRows(tab, target, await this.page.readRows());
   }
 
@@ -82,6 +109,10 @@ export class ShinhanSapCourseCollector implements CourseSource {
     for (const row of rows) {
       target.push(this.parser.parse(row, { tab: tab.label, category: tab.category }));
     }
+  }
+
+  private currentOptionLast(options: readonly { key: string; label: string }[]) {
+    return options.length > 1 ? [...options.slice(1), options[0]!] : [...options];
   }
 
   private deduplicate(courses: RawCourse[]): RawCourse[] {

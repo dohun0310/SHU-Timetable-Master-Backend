@@ -51,6 +51,7 @@ export class PlaywrightCourseCatalogPage implements CourseCatalogPage {
   private readonly failureScreenshotPath: string;
   private browser: BrowserInstance | null = null;
   private page: BrowserPage | null = null;
+  private selectedPeriod: { academicYear: number; semester: Semester } | null = null;
 
   constructor(private readonly options: PlaywrightCourseCatalogPageOptions) {
     this.browserType = options.browserType ?? chromium;
@@ -75,6 +76,7 @@ export class PlaywrightCourseCatalogPage implements CourseCatalogPage {
         this.options.selectors.semesterButton,
         sapSemesterKeys[semester],
       );
+      this.selectedPeriod = { academicYear, semester };
     } catch (error) {
       await this.page.screenshot({ path: this.failureScreenshotPath, fullPage: true });
       throw new Error(`SAP 조회 기간 선택 실패: ${academicYear} ${sapSemesterLabels[semester]}`, {
@@ -93,7 +95,16 @@ export class PlaywrightCourseCatalogPage implements CourseCatalogPage {
     if (!this.page) {
       throw new Error("SAP 강좌 페이지가 열리지 않았습니다.");
     }
-    return new PlaywrightSapCollectionPage(this.page as unknown as Page);
+    return new PlaywrightSapCollectionPage(this.page as unknown as Page, async () => {
+      if (!this.page || !this.selectedPeriod) {
+        throw new Error("SAP 조회 기간이 선택되지 않았습니다.");
+      }
+      await this.page.goto(this.options.url, { waitUntil: "domcontentloaded" });
+      await this.selectAcademicPeriod(
+        this.selectedPeriod.academicYear,
+        this.selectedPeriod.semester,
+      );
+    });
   }
 
   private async selectComboOption(buttonSelector: string, itemKey: string): Promise<void> {
