@@ -31,13 +31,37 @@ describe("ShinhanSapCourseCollector", () => {
     let selectedCollege = "college-a";
     let selectedMicroType = "type-a";
     const optionsByFilter = new Map<string, SapFilterOption[]>([
-      ["1:0", [{ key: "4101", label: "시민과 사회" }, { key: "4201", label: "인간과 문화" }]],
-      ["3:0", [{ key: "type-a", label: "유형 A" }, { key: "type-b", label: "유형 B" }]],
+      [
+        "1:0",
+        [
+          { key: "4101", label: "시민과 사회" },
+          { key: "4201", label: "인간과 문화" },
+        ],
+      ],
+      [
+        "3:0",
+        [
+          { key: "type-a", label: "유형 A" },
+          { key: "type-b", label: "유형 B" },
+        ],
+      ],
       ["3:1:type-a", [{ key: "program-a", label: "과정 A" }]],
       ["3:1:type-b", [{ key: "program-b", label: "과정 B" }]],
-      ["4:0", [{ key: "college-a", label: "단과대학 A" }, { key: "college-b", label: "단과대학 B" }]],
+      [
+        "4:0",
+        [
+          { key: "college-a", label: "단과대학 A" },
+          { key: "college-b", label: "단과대학 B" },
+        ],
+      ],
       ["4:1:college-a", [{ key: "dept-a", label: "학과 A" }]],
-      ["4:1:college-b", [{ key: "dept-b", label: "학과 B" }, { key: "dept-c", label: "학과 C" }]],
+      [
+        "4:1:college-b",
+        [
+          { key: "dept-b", label: "학과 B" },
+          { key: "dept-c", label: "학과 C" },
+        ],
+      ],
     ]);
     const page: SapCollectionPage = {
       reset: vi.fn(async () => {
@@ -46,14 +70,15 @@ describe("ShinhanSapCourseCollector", () => {
       selectTab: vi.fn(async (index) => {
         currentTab = index;
       }),
-      listFilterOptions: vi.fn(async (filterIndex) =>
-        optionsByFilter.get(
-          currentTab === 4 && filterIndex === 1
-            ? `${currentTab}:${filterIndex}:${selectedCollege}`
-            : currentTab === 3 && filterIndex === 1
-              ? `${currentTab}:${filterIndex}:${selectedMicroType}`
-              : `${currentTab}:${filterIndex}`,
-        ) ?? [],
+      listFilterOptions: vi.fn(
+        async (filterIndex) =>
+          optionsByFilter.get(
+            currentTab === 4 && filterIndex === 1
+              ? `${currentTab}:${filterIndex}:${selectedCollege}`
+              : currentTab === 3 && filterIndex === 1
+                ? `${currentTab}:${filterIndex}:${selectedMicroType}`
+                : `${currentTab}:${filterIndex}`,
+          ) ?? [],
       ),
       selectFilterOption: vi.fn(async (filterIndex, key) => {
         if (currentTab === 4 && filterIndex === 0) selectedCollege = key;

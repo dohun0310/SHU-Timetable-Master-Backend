@@ -26,9 +26,9 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
     const possibleResponse = this.waitForSapResponse(1_500).catch(() => null);
     await tab.locator(".lsTbsv5-ItemTitle").evaluate((element) => (element as HTMLElement).click());
     await this.page.waitForFunction((tabIndex) => {
-      const visibleTabs = [...document.querySelectorAll<HTMLElement>('[ct="TSITM_standards"]')].filter(
-        (element) => element.offsetParent !== null,
-      );
+      const visibleTabs = [
+        ...document.querySelectorAll<HTMLElement>('[ct="TSITM_standards"]'),
+      ].filter((element) => element.offsetParent !== null);
       return visibleTabs[tabIndex]?.hasAttribute("selected") ?? false;
     }, index);
     if (await possibleResponse) await this.waitForSapIdle();
@@ -153,12 +153,11 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
     ];
     const table = this.page.locator('[ct="ST"]:visible').first();
     const rows = await table.evaluate((element, expectedHeaders) => {
-      const visibleHeaders = [...element.querySelectorAll<HTMLElement>('[ct="CP"]')].map(
-        (header) =>
-          (header.textContent ?? "")
-            .replace(/\u00a0/g, " ")
-            .replace(/\s+/g, " ")
-            .trim(),
+      const visibleHeaders = [...element.querySelectorAll<HTMLElement>('[ct="CP"]')].map((header) =>
+        (header.textContent ?? "")
+          .replace(/\u00a0/g, " ")
+          .replace(/\s+/g, " ")
+          .trim(),
       );
       const sourceIndex = new Map(visibleHeaders.map((header, index) => [header, index]));
 
@@ -166,8 +165,7 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
         (row) => {
           const sourceCells = [...row.querySelectorAll<HTMLTableCellElement>("td[cc]")]
             .sort(
-              (left, right) =>
-                Number(left.getAttribute("cc")) - Number(right.getAttribute("cc")),
+              (left, right) => Number(left.getAttribute("cc")) - Number(right.getAttribute("cc")),
             )
             .map((cell) =>
               (cell.textContent ?? "")
@@ -221,8 +219,7 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
 
   private waitForSapRequest(timeout = 2_000) {
     return this.page.waitForRequest(
-      (request) =>
-        request.method() === "POST" && request.url().includes("/sap/bc/webdynpro/"),
+      (request) => request.method() === "POST" && request.url().includes("/sap/bc/webdynpro/"),
       { timeout },
     );
   }

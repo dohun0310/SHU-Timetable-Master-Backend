@@ -5,8 +5,10 @@
   "type": "module",
   "packageManager": "yarn@4.17.1",
   "scripts": {
-    "build": "yarn build:server",
+    "build": "yarn catalog:generate && yarn build:server",
+    "build:offline": "yarn build:server",
     "build:server": "tsc -p tsconfig.build.json",
+    "catalog:generate": "tsx scripts/generate-catalog.ts",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",
