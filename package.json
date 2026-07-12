@@ -9,6 +9,8 @@
     "build:offline": "yarn build:server",
     "build:server": "tsc -p tsconfig.build.json",
     "catalog:generate": "tsx scripts/generate-catalog.ts",
+    "docker:build": "yarn catalog:generate && docker build -t shu-timetable-master-backend .",
+    "docker:build:offline": "docker build -t shu-timetable-master-backend .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "lint": "eslint .",

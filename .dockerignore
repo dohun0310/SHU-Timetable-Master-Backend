@@ -1,0 +1,15 @@
+.git
+.github
+.yarn/cache
+.yarn/install-state.gz
+node_modules
+dist
+tests
+artifacts
+coverage
+playwright-report
+test-results
+.env
+.env.*
+*.log
+.DS_Store
