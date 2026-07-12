@@ -9,6 +9,8 @@ export interface AppConfig {
   sapCourseUrl: string;
   port: number;
   playwrightHeadless: boolean;
+  catalogPath: string;
+  corsOrigin: string;
 }
 
 const integerText = /^\d+$/;
@@ -34,6 +36,20 @@ function parsePort(value: string | undefined): number {
   return port;
 }
 
+export interface ServerConfig {
+  port: number;
+  catalogPath: string;
+  corsOrigin: string;
+}
+
+export function loadServerConfig(environment: NodeJS.ProcessEnv = process.env): ServerConfig {
+  return {
+    port: parsePort(environment.PORT),
+    catalogPath: environment.CATALOG_PATH ?? "generated/catalog.json",
+    corsOrigin: environment.CORS_ORIGIN ?? "*",
+  };
+}
+
 export function loadAppConfig(environment: NodeJS.ProcessEnv = process.env): AppConfig {
   const sapCourseUrl = z.url().parse(environment.SAP_COURSE_URL);
 
@@ -43,7 +59,14 @@ export function loadAppConfig(environment: NodeJS.ProcessEnv = process.env): App
     sapCourseUrl,
     port: parsePort(environment.PORT),
     playwrightHeadless: environment.PLAYWRIGHT_HEADLESS !== "false",
+    catalogPath: environment.CATALOG_PATH ?? "generated/catalog.json",
+    corsOrigin: environment.CORS_ORIGIN ?? "*",
   };
+}
+
+export function loadServerConfigFromDotenv(): ServerConfig {
+  loadDotenv();
+  return loadServerConfig();
 }
 
 export function loadAppConfigFromDotenv(): AppConfig {

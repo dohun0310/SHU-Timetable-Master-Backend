@@ -17,6 +17,8 @@ describe("loadAppConfig", () => {
       sapCourseUrl: "https://example.com/course-catalog",
       port: 4000,
       playwrightHeadless: true,
+      catalogPath: "generated/catalog.json",
+      corsOrigin: "*",
     });
   });
 
