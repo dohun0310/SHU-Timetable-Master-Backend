@@ -13,7 +13,7 @@ const rawCourse = (overrides: Partial<RawCourse> = {}): RawCourse => ({
   courseCode: "SW1001",
   professor: "홍길동",
   majorName: "소프트웨어학과",
-  classTime: "월 1-2",
+  classTime: "월 1교시 09:00-09:50 (은혜관-2220-강의실)월 2교시 10:00-10:50 (은혜관-2220-강의실)",
   requirement: "전필",
   courseName: "소프트웨어개론",
   departmentName: "소프트웨어학과",
@@ -51,6 +51,26 @@ describe("GenerateCourseCatalog", () => {
     ]);
     expect(catalog.filters.professors).toEqual([{ id: "홍길동", label: "홍길동", count: 2 }]);
     expect(catalog.filters.days).toEqual([{ id: "MONDAY", label: "월", count: 2 }]);
+  });
+
+  it("counts a day once per course even when the course meets twice that day", () => {
+    const catalog = new GenerateCourseCatalog({
+      idGenerator: new DefaultCourseIdGenerator(),
+      scheduleParser: new KoreanPeriodScheduleParser(),
+    }).execute({
+      academicYear: 2026,
+      semester: "SECOND",
+      sourceUrl: "https://example.com/sap",
+      rawCourses: [
+        rawCourse({
+          classTime:
+            "월 1교시 09:00-09:50 (은혜관-2220-강의실)월 1교시 09:00-09:50 (기도관-1250-실습실)",
+        }),
+      ],
+    });
+
+    expect(catalog.courses[0]?.schedule.meetings).toHaveLength(2);
+    expect(catalog.filters.days).toEqual([{ id: "MONDAY", label: "월", count: 1 }]);
   });
 
   it("rejects duplicate generated course IDs", () => {
