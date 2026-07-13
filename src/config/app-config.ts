@@ -11,6 +11,7 @@ export interface AppConfig {
   playwrightHeadless: boolean;
   catalogPath: string;
   corsOrigin: string;
+  sapConcurrency: number;
 }
 
 const integerText = /^\d+$/;
@@ -36,6 +37,15 @@ function parsePort(value: string | undefined): number {
   return port;
 }
 
+// 학과를 여러 페이지로 나눠 수집한다. 학교 서버에 부담을 주지 않도록 상한을 둔다.
+function parseSapConcurrency(value: string | undefined): number {
+  const concurrency = Number(value ?? "4");
+  if (!Number.isInteger(concurrency) || concurrency < 1 || concurrency > 8) {
+    throw new Error("SAP_CONCURRENCY는 1부터 8 사이의 정수여야 합니다.");
+  }
+  return concurrency;
+}
+
 export interface ServerConfig {
   port: number;
   catalogPath: string;
@@ -59,6 +69,7 @@ export function loadAppConfig(environment: NodeJS.ProcessEnv = process.env): App
     sapCourseUrl,
     port: parsePort(environment.PORT),
     playwrightHeadless: environment.PLAYWRIGHT_HEADLESS !== "false",
+    sapConcurrency: parseSapConcurrency(environment.SAP_CONCURRENCY),
     catalogPath: environment.CATALOG_PATH ?? "generated/catalog.json",
     corsOrigin: environment.CORS_ORIGIN ?? "*",
   };
