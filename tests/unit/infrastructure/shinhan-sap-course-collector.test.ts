@@ -7,9 +7,10 @@ import type {
   SapFilterOption,
 } from "../../../src/infrastructure/sap/sap-collection-page.js";
 
-const row = [
+// 어느 선택에서 나온 행인지 과목코드로 알 수 있게 한다. 그래야 수집 순서를 검증할 수 있다.
+const rowFor = (courseCode: string): string[] => [
   "이론",
-  "GE61002",
+  courseCode,
   "홍길동",
   "월 1-2",
   "리나시타교양대학",
@@ -26,10 +27,22 @@ const row = [
   "기독교의 이해",
 ];
 
+const row = rowFor("GE61002");
+
+// 먼저 맡은 일감이 가장 늦게 끝나도록 한다. 완료 순서와 일감 순서가 반드시 어긋난다.
+const unitDelays: Record<string, number> = {
+  "dept-a": 30,
+  "dept-c": 1,
+  "dept-b": 1,
+  "program-b": 30,
+  "program-a": 1,
+};
+
 function fakePage(): SapCollectionPage {
   let currentTab = 0;
   let selectedCollege = "college-a";
   let selectedMicroType = "type-a";
+  let selectedUnit = "none";
   const optionsByFilter = new Map<string, SapFilterOption[]>([
     [
       "1:0",
@@ -83,9 +96,17 @@ function fakePage(): SapCollectionPage {
     selectFilterOption: vi.fn(async (filterIndex, key) => {
       if (currentTab === 4 && filterIndex === 0) selectedCollege = key;
       if (currentTab === 3 && filterIndex === 0) selectedMicroType = key;
+      if (filterIndex === 1) selectedUnit = key;
     }),
     search: vi.fn().mockResolvedValue(true),
-    readRows: vi.fn().mockResolvedValue([row]),
+    // 학과·과정마다 다른 행을 돌려준다. 그래야 수집 순서가 결과에 드러난다.
+    // 학과마다 걸리는 시간을 다르게 두어 완료 순서가 일감 순서와 어긋나게 만든다.
+    // 실제 SAP도 학과마다 응답이 제각각이므로, 지연이 없으면 병렬 순서 버그를 놓친다.
+    readRows: vi.fn(async () => {
+      if (currentTab !== 4 && currentTab !== 3) return [row];
+      await new Promise((resolve) => setTimeout(resolve, unitDelays[selectedUnit] ?? 1));
+      return [rowFor(selectedUnit)];
+    }),
   };
 
   return page;
@@ -105,7 +126,7 @@ describe("ShinhanSapCourseCollector", () => {
     expect(page.selectFilterOption).toHaveBeenCalledWith(1, "dept-c");
     expect(page.selectFilterOption).toHaveBeenCalledWith(1, "program-a");
     expect(page.selectFilterOption).toHaveBeenCalledWith(1, "program-b");
-    expect(courses).toHaveLength(1);
+    expect(courses).toHaveLength(6);
   });
 
   it("reports every tab it starts", async () => {
@@ -197,6 +218,26 @@ describe("ShinhanSapCourseCollector", () => {
     ]).collect();
 
     expect(parallel).toEqual(sequential);
+  });
+
+  it("keeps the collected order fixed no matter how many pages run", async () => {
+    // 위의 "1개 vs 여러 개" 비교만으로는 부족하다. 양쪽을 똑같이 망가뜨리는 실수는 서로 같아 보인다.
+    // 중복 제거가 먼저 온 행을 남기므로 순서가 흔들리면 데이터가 달라진다. 순서 자체를 못 박는다.
+    const expected = [
+      "GE61002", // 기초교양·핵심교양 (탭 순회)
+      "program-b", // 마이크로디그리 — 일감 순서
+      "program-a",
+      "dept-a", // 학과 — 일감 순서 (단과대학 A → B)
+      "dept-c",
+      "dept-b",
+    ];
+
+    for (const pageCount of [1, 2, 3, 5]) {
+      const pages = Array.from({ length: pageCount }, () => fakePage());
+      const courses = await new ShinhanSapCourseCollector(pages).collect();
+
+      expect(courses.map((course) => course.courseCode)).toEqual(expected);
+    }
   });
 
   it("spreads the departments across every page it is given", async () => {
