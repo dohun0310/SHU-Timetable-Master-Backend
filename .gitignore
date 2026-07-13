@@ -1,0 +1,16 @@
+node_modules/
+.yarn/cache/
+.yarn/install-state.gz
+.yarn/unplugged/
+dist/
+generated/*.json
+!generated/.gitkeep
+.env
+.env.*
+!.env.example
+coverage/
+playwright-report/
+test-results/
+artifacts/
+*.log
+.DS_Store
