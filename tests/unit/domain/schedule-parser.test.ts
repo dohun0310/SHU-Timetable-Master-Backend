@@ -123,6 +123,28 @@ describe("KoreanPeriodScheduleParser", () => {
     });
   });
 
+  it("parses the schedule SAP lists one meeting per line", () => {
+    // SAP은 교시를 <br>로 나눈다. 줄 구분을 살려 읽으면 원문이 이렇게 들어온다.
+    const raw =
+      "월 2교시 10:00-10:50 (말씀관-2160-강의실)\n월 3교시 11:00-11:50 (말씀관-2160-강의실)";
+
+    expect(parser.parse(raw)).toEqual({
+      raw,
+      parseStatus: "PARSED",
+      meetings: [
+        {
+          day: "MONDAY",
+          dayLabel: "월",
+          startPeriod: 2,
+          endPeriod: 3,
+          startTime: "10:00",
+          endTime: "11:50",
+          location: "말씀관-2160-강의실",
+        },
+      ],
+    });
+  });
+
   it("merges a period that carries no room into the block that names one", () => {
     // SAP은 연속 교시 블록의 강의실을 마지막 교시에만 적는다.
     const raw = "화 1교시 09:00-09:50화 2교시 10:00-10:50 (말씀관-B1020-강의실)";
