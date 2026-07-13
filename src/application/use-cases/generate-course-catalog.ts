@@ -51,6 +51,15 @@ function createFilters(values: Array<{ id: string; label: string }>): CatalogFil
   return [...counts.values()].sort((left, right) => left.label.localeCompare(right.label, "ko"));
 }
 
+// 강의실이 둘이면 같은 요일에 meeting이 둘 생긴다. 요일 필터는 강좌 수를 세야 하므로 요일별로 한 번만 센다.
+function distinctDays(course: Course): Array<{ id: string; label: string }> {
+  const days = new Map<string, { id: string; label: string }>();
+  for (const meeting of course.schedule.meetings) {
+    days.set(meeting.day, { id: meeting.day, label: meeting.dayLabel });
+  }
+  return [...days.values()];
+}
+
 export class GenerateCourseCatalog {
   private readonly now: () => Date;
 
@@ -115,14 +124,7 @@ export class GenerateCourseCatalog {
             course.professor ? [{ id: course.professor, label: course.professor }] : [],
           ),
         ),
-        days: createFilters(
-          courses.flatMap((course) =>
-            course.schedule.meetings.map((meeting) => ({
-              id: meeting.day,
-              label: meeting.dayLabel,
-            })),
-          ),
-        ),
+        days: createFilters(courses.flatMap(distinctDays)),
       },
       courses,
     });
