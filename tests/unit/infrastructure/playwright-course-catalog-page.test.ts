@@ -68,4 +68,93 @@ describe("PlaywrightCourseCatalogPage", () => {
       "SAP 강좌 페이지가 열리지 않았습니다.",
     );
   });
+
+  it("retries page reset when the academic period selector is temporarily unavailable", async () => {
+    const yearButton = {
+      click: vi
+        .fn()
+        .mockResolvedValueOnce(undefined)
+        .mockRejectedValueOnce(new Error("temporary timeout"))
+        .mockResolvedValue(undefined),
+    };
+    const semesterButton = { click: vi.fn().mockResolvedValue(undefined) };
+    const option = { click: vi.fn().mockResolvedValue(undefined) };
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      locator: vi.fn((selector: string) =>
+        selector === "#year-button"
+          ? yearButton
+          : selector === "#semester-button"
+            ? semesterButton
+            : option,
+      ),
+      screenshot: vi.fn().mockResolvedValue(undefined),
+      waitForFunction: vi.fn().mockResolvedValue(undefined),
+    };
+    const browser = {
+      newPage: vi.fn().mockResolvedValue(page),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const catalogPage = new PlaywrightCourseCatalogPage({
+      url: "https://example.com/catalog",
+      headless: true,
+      selectors: {
+        academicYearButton: "#year-button",
+        semesterButton: "#semester-button",
+        optionItems: '[ct="LIB_I"]',
+      },
+      browserType: { launch: vi.fn().mockResolvedValue(browser) },
+    });
+
+    await catalogPage.open();
+    await catalogPage.selectAcademicPeriod(2026, "SECOND");
+    await catalogPage.getCollectionPage().reset();
+
+    expect(page.goto).toHaveBeenCalledTimes(3);
+    expect(yearButton.click).toHaveBeenCalledTimes(3);
+    expect(page.screenshot).toHaveBeenCalledOnce();
+  });
+
+  it("reports the retry count when page reset keeps failing", async () => {
+    const yearButton = {
+      click: vi.fn().mockResolvedValueOnce(undefined).mockRejectedValue(new Error("timeout")),
+    };
+    const semesterButton = { click: vi.fn().mockResolvedValue(undefined) };
+    const option = { click: vi.fn().mockResolvedValue(undefined) };
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      locator: vi.fn((selector: string) =>
+        selector === "#year-button"
+          ? yearButton
+          : selector === "#semester-button"
+            ? semesterButton
+            : option,
+      ),
+      screenshot: vi.fn().mockRejectedValue(new Error("screenshot failed")),
+      waitForFunction: vi.fn().mockResolvedValue(undefined),
+    };
+    const browser = {
+      newPage: vi.fn().mockResolvedValue(page),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const catalogPage = new PlaywrightCourseCatalogPage({
+      url: "https://example.com/catalog",
+      headless: true,
+      selectors: {
+        academicYearButton: "#year-button",
+        semesterButton: "#semester-button",
+        optionItems: '[ct="LIB_I"]',
+      },
+      browserType: { launch: vi.fn().mockResolvedValue(browser) },
+    });
+
+    await catalogPage.open();
+    await catalogPage.selectAcademicPeriod(2026, "SECOND");
+
+    await expect(catalogPage.getCollectionPage().reset()).rejects.toThrow(
+      "SAP 페이지 재설정 실패: 3회 시도",
+    );
+    expect(page.goto).toHaveBeenCalledTimes(4);
+    expect(page.screenshot).toHaveBeenCalledTimes(3);
+  });
 });
