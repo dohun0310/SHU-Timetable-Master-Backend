@@ -160,6 +160,34 @@ describe("KoreanPeriodScheduleParser", () => {
     ]);
   });
 
+  it("extends the block whose room matches rather than the one with no room", () => {
+    // 강의실 없는 교시가 먼저 오고 같은 교시가 강의실과 함께 다시 나오면 이어붙일 블록이 둘이 된다.
+    // 강의실이 똑같은 블록을 먼저 잇지 않으면 같은 강의실을 주장하는 meeting이 겹쳐 생긴다.
+    const raw =
+      "목 1교시 09:00-09:50목 1교시 09:00-09:50 (기도관-1250)목 2교시 10:00-10:50 (기도관-1250)";
+
+    expect(parser.parse(raw).meetings).toEqual([
+      {
+        day: "THURSDAY",
+        dayLabel: "목",
+        startPeriod: 1,
+        endPeriod: 1,
+        startTime: "09:00",
+        endTime: "09:50",
+        location: null,
+      },
+      {
+        day: "THURSDAY",
+        dayLabel: "목",
+        startPeriod: 1,
+        endPeriod: 2,
+        startTime: "09:00",
+        endTime: "10:50",
+        location: "기도관-1250",
+      },
+    ]);
+  });
+
   it("does not merge consecutive periods held in different rooms", () => {
     const raw =
       "월 2교시 10:00-10:50 (말씀관-2160-강의실)월 3교시 11:00-11:50 (은혜관-5060-강의실)";
