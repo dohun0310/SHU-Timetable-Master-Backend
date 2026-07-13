@@ -42,6 +42,13 @@ interface SegmentReading {
   leftover: string;
 }
 
+// SAP은 연속 교시 블록의 강의실을 한 교시에만 적기도 한다.
+// "화 1교시 09:00-09:50화 2교시 10:00-10:50 (말씀관-B1020-강의실)"
+// 그래서 한쪽에 강의실이 없으면 같은 강의실로 본다.
+function sameRoom(left: string | null, right: string | null): boolean {
+  return left === null || right === null || left === right;
+}
+
 export class KoreanPeriodScheduleParser implements ScheduleParser {
   parse(rawSchedule: string): CourseSchedule {
     const raw = rawSchedule.trim();
@@ -94,29 +101,35 @@ export class KoreanPeriodScheduleParser implements ScheduleParser {
     };
   }
 
-  // 같은 요일·같은 강의실에서 교시가 이어지면 하나의 meeting으로 합친다.
-  // 한 교시가 서로 다른 강의실로 두 번 나오는 강좌가 있어 인접 교시만 비교해서는 안 된다.
+  // 요일마다 블록을 여럿 열어 두고, 교시가 이어지면서 강의실이 맞는 블록에 붙인다.
+  // 한 교시가 서로 다른 강의실로 두 번 나오는 강좌가 있어 블록이 하나뿐이라고 볼 수 없다.
   private mergeConsecutivePeriods(slots: PeriodSlot[]): CourseMeeting[] {
-    const groups = new Map<string, PeriodSlot[]>();
+    const slotsByDay = new Map<Weekday, PeriodSlot[]>();
     for (const slot of slots) {
-      const key = `${slot.day} ${slot.location ?? ""}`;
-      const group = groups.get(key);
-      if (group) group.push(slot);
-      else groups.set(key, [slot]);
+      const daySlots = slotsByDay.get(slot.day);
+      if (daySlots) daySlots.push(slot);
+      else slotsByDay.set(slot.day, [slot]);
     }
 
     const meetings: CourseMeeting[] = [];
-    for (const group of groups.values()) {
-      let current: CourseMeeting | null = null;
+    for (const daySlots of slotsByDay.values()) {
+      const blocks: CourseMeeting[] = [];
 
-      for (const slot of [...group].sort((left, right) => left.period - right.period)) {
-        if (current && current.endPeriod + 1 === slot.period) {
-          current.endPeriod = slot.period;
-          current.endTime = slot.endTime;
+      for (const slot of [...daySlots].sort((left, right) => left.period - right.period)) {
+        const reachable = blocks.filter(
+          (block) => block.endPeriod + 1 === slot.period && sameRoom(block.location, slot.location),
+        );
+        // 강의실이 똑같은 블록을 먼저 잇는다. 없으면 강의실이 비어 있는 쪽에 붙인다.
+        const target = reachable.find((block) => block.location === slot.location) ?? reachable[0];
+
+        if (target) {
+          target.endPeriod = slot.period;
+          target.endTime = slot.endTime;
+          target.location ??= slot.location;
           continue;
         }
 
-        current = {
+        blocks.push({
           day: slot.day,
           dayLabel: slot.dayLabel,
           startPeriod: slot.period,
@@ -124,9 +137,10 @@ export class KoreanPeriodScheduleParser implements ScheduleParser {
           startTime: slot.startTime,
           endTime: slot.endTime,
           location: slot.location,
-        };
-        meetings.push(current);
+        });
       }
+
+      meetings.push(...blocks);
     }
 
     return meetings.sort(

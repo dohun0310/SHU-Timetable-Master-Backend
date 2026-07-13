@@ -123,6 +123,97 @@ describe("KoreanPeriodScheduleParser", () => {
     });
   });
 
+  it("merges a period that carries no room into the block that names one", () => {
+    // SAP은 연속 교시 블록의 강의실을 마지막 교시에만 적는다.
+    const raw = "화 1교시 09:00-09:50화 2교시 10:00-10:50 (말씀관-B1020-강의실)";
+
+    expect(parser.parse(raw)).toEqual({
+      raw,
+      parseStatus: "PARSED",
+      meetings: [
+        {
+          day: "TUESDAY",
+          dayLabel: "화",
+          startPeriod: 1,
+          endPeriod: 2,
+          startTime: "09:00",
+          endTime: "10:50",
+          location: "말씀관-B1020-강의실",
+        },
+      ],
+    });
+  });
+
+  it("merges a trailing period that carries no room into the block before it", () => {
+    const raw = "월 4교시 12:00-12:50 (말씀관-2190-강의실)월 5교시 13:00-13:50";
+
+    expect(parser.parse(raw).meetings).toEqual([
+      {
+        day: "MONDAY",
+        dayLabel: "월",
+        startPeriod: 4,
+        endPeriod: 5,
+        startTime: "12:00",
+        endTime: "13:50",
+        location: "말씀관-2190-강의실",
+      },
+    ]);
+  });
+
+  it("extends the block whose room matches rather than the one with no room", () => {
+    // 강의실 없는 교시가 먼저 오고 같은 교시가 강의실과 함께 다시 나오면 이어붙일 블록이 둘이 된다.
+    // 강의실이 똑같은 블록을 먼저 잇지 않으면 같은 강의실을 주장하는 meeting이 겹쳐 생긴다.
+    const raw =
+      "목 1교시 09:00-09:50목 1교시 09:00-09:50 (기도관-1250)목 2교시 10:00-10:50 (기도관-1250)";
+
+    expect(parser.parse(raw).meetings).toEqual([
+      {
+        day: "THURSDAY",
+        dayLabel: "목",
+        startPeriod: 1,
+        endPeriod: 1,
+        startTime: "09:00",
+        endTime: "09:50",
+        location: null,
+      },
+      {
+        day: "THURSDAY",
+        dayLabel: "목",
+        startPeriod: 1,
+        endPeriod: 2,
+        startTime: "09:00",
+        endTime: "10:50",
+        location: "기도관-1250",
+      },
+    ]);
+  });
+
+  it("does not merge consecutive periods held in different rooms", () => {
+    const raw =
+      "월 2교시 10:00-10:50 (말씀관-2160-강의실)월 3교시 11:00-11:50 (은혜관-5060-강의실)";
+
+    expect(parser.parse(raw).meetings).toEqual([
+      {
+        day: "MONDAY",
+        dayLabel: "월",
+        startPeriod: 2,
+        endPeriod: 2,
+        startTime: "10:00",
+        endTime: "10:50",
+        location: "말씀관-2160-강의실",
+      },
+      {
+        day: "MONDAY",
+        dayLabel: "월",
+        startPeriod: 3,
+        endPeriod: 3,
+        startTime: "11:00",
+        endTime: "11:50",
+        location: "은혜관-5060-강의실",
+      },
+    ]);
+  });
+
   it("does not merge periods that are not consecutive", () => {
     const raw =
       "월 2교시 10:00-10:50 (말씀관-2160-강의실)월 5교시 13:00-13:50 (말씀관-2160-강의실)";
@@ -239,6 +330,25 @@ describe.skipIf(!existsSync(catalogPath))(
       });
 
       expect(emptyButParsed).toEqual([]);
+    });
+
+    it("leaves no consecutive periods unmerged", () => {
+      const unmerged = rawSchedules.filter((raw) =>
+        parser.parse(raw).meetings.some((left, index, meetings) =>
+          meetings.some(
+            (right, otherIndex) =>
+              index !== otherIndex &&
+              left.day === right.day &&
+              left.endPeriod + 1 === right.startPeriod &&
+              // 강의실이 다르면 서로 다른 수업이므로 합치지 않는 것이 맞다.
+              (left.location === right.location ||
+                left.location === null ||
+                right.location === null),
+          ),
+        ),
+      );
+
+      expect(unmerged).toEqual([]);
     });
   },
 );
