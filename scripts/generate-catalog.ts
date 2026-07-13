@@ -5,6 +5,10 @@ import { PrepareCourseCatalogSession } from "../src/application/use-cases/prepar
 import { loadAppConfigFromDotenv } from "../src/config/app-config.js";
 import { DefaultCourseIdGenerator } from "../src/domain/services/course-id-generator.js";
 import { KoreanPeriodScheduleParser } from "../src/domain/services/schedule-parser.js";
+import {
+  formatDuration,
+  formatProgress,
+} from "../src/infrastructure/console/collection-progress-reporter.js";
 import { JsonFileCourseCatalogRepository } from "../src/infrastructure/json/json-file-course-catalog-repository.js";
 import {
   PlaywrightCourseCatalogPage,
@@ -20,13 +24,20 @@ async function main(): Promise<void> {
     selectors: shinhanSapPageSelectors,
   });
   const prepareSession = new PrepareCourseCatalogSession(page);
+  const startedAt = Date.now();
 
   try {
+    console.log(`${config.targetAcademicYear}학년도 ${config.targetSemester} 강좌 수집 시작`);
     await prepareSession.execute({
       academicYear: config.targetAcademicYear,
       semester: config.targetSemester,
     });
-    const rawCourses = await new ShinhanSapCourseCollector(page.getCollectionPage()).collect();
+
+    const collector = new ShinhanSapCourseCollector(page.getCollectionPage(), (progress) => {
+      console.log(formatProgress(progress));
+    });
+    const rawCourses = await collector.collect();
+
     const catalog = new GenerateCourseCatalog({
       idGenerator: new DefaultCourseIdGenerator(),
       scheduleParser: new KoreanPeriodScheduleParser(),
@@ -38,7 +49,11 @@ async function main(): Promise<void> {
     });
     const outputPath = resolve("generated/catalog.json");
     await new JsonFileCourseCatalogRepository(outputPath).save(catalog);
-    console.log(`강좌 카탈로그 생성 완료: ${outputPath} (${catalog.meta.courseCount}개)`);
+
+    console.log(
+      `수집 완료: ${catalog.meta.courseCount}건 (${formatDuration(Date.now() - startedAt)})`,
+    );
+    console.log(`강좌 카탈로그 생성 완료: ${outputPath}`);
   } finally {
     await page.close();
   }
