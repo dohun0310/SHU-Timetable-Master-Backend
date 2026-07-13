@@ -306,25 +306,26 @@ describe("TimetableGenerator", () => {
     expect(result.truncated).toBe(false);
   });
 
-  it("survives a combinatorial explosion by cutting the search short", () => {
-    // 바구니 12개 × 각 6개 분반 = 이론상 20억 조합. 상한이 없으면 끝나지 않는다.
+  it("survives a combinatorial explosion by cutting the search short", { timeout: 5000 }, () => {
+    // 바구니 12개 × 각 6개 분반. 바구니마다 교시가 달라 서로 충돌하지 않으므로
+    // 6^12(약 20억) 조합이 전부 유효하다. 상한이 없으면 이를 다 세다가 끝나지 않는다.
+    // 실행 시간을 재면 머신 부하에 흔들리므로, 상한이 걸렸다는 사실 자체를 본다.
+    const days: Weekday[] = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
     const baskets = Array.from({ length: 12 }, (_, basketIndex) =>
       basket(
         `과목${basketIndex}`,
-        Array.from({ length: 6 }, (_, sectionIndex) =>
+        Array.from({ length: 6 }, () =>
           course(`과목${basketIndex}`, 3, [
-            meeting("MONDAY", basketIndex + 1, basketIndex + 1),
-            meeting("TUESDAY", sectionIndex + 1, sectionIndex + 1),
+            meeting(days[basketIndex % 5]!, basketIndex + 1, basketIndex + 1),
           ]),
         ),
       ),
     );
 
-    const started = Date.now();
     const result = generate(baskets, { limit: 5 });
 
-    expect(Date.now() - started).toBeLessThan(2000);
-    expect(result.count).toBeLessThanOrEqual(5);
+    expect(result.count).toBe(5);
+    expect(result.truncated).toBe(true);
   });
 
   it("refuses a course whose schedule could not be fully parsed", () => {
