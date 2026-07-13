@@ -74,13 +74,61 @@ yarn start
 
 ### API
 
-| 메서드 | 경로            | 설명                           |
-| ------ | --------------- | ------------------------------ |
-| `GET`  | `/api/catalog`  | 전체 카탈로그 JSON             |
-| `GET`  | `/catalog.json` | 동일 카탈로그의 정적 호환 경로 |
-| `GET`  | `/api/health`   | 서버 및 로드된 강좌 수 확인    |
+| 메서드 | 경로               | 설명                        |
+| ------ | ------------------ | --------------------------- |
+| `GET`  | `/api/courses`     | 강좌 검색·필터·페이지네이션 |
+| `GET`  | `/api/courses/:id` | 강좌 단건 조회              |
+| `GET`  | `/api/meta`        | 학기 정보와 필터 목록       |
+| `GET`  | `/api/health`      | 서버 및 로드된 강좌 수 확인 |
 
-카탈로그 응답은 strong ETag와 `Cache-Control`을 제공하며 조건부 요청 시 `304 Not Modified`를 반환합니다.
+응답은 strong ETag와 `Cache-Control`을 제공하며 조건부 요청 시 `304 Not Modified`를 반환합니다.
+
+#### `GET /api/courses`
+
+| Query        | 예시               | 설명                                                |
+| ------------ | ------------------ | --------------------------------------------------- |
+| `q`          | `자료구조`         | 강좌명·과목코드·교수 부분 일치 (공백·대소문자 무시) |
+| `category`   | `MAJOR,TEACHING`   | 강좌 분류                                           |
+| `department` | `소프트웨어학과`   | 학과                                                |
+| `major`      | `소프트웨어학과`   | 전공                                                |
+| `professor`  | `홍길동`           | 교수                                                |
+| `day`        | `MONDAY,WEDNESDAY` | 해당 요일에 수업이 있는 강좌                        |
+| `startAfter` | `10:00`            | 모든 수업이 이 시각 이후에 시작                     |
+| `endBefore`  | `18:00`            | 모든 수업이 이 시각 이전에 종료                     |
+| `minCredits` | `3`                | 최소 학점                                           |
+| `maxCredits` | `3`                | 최대 학점                                           |
+| `page`       | `2`                | 페이지 번호, 1부터 시작 (기본 `1`)                  |
+| `size`       | `50`               | 페이지 크기, 최대 `100` (기본 `20`)                 |
+| `sort`       | `credits`          | `name` 또는 `credits` (기본 `name`)                 |
+
+같은 필터에 값을 여러 개 주면 OR로, 서로 다른 필터는 AND로 묶입니다. 값이 여러 개일 때는 `?day=MONDAY,TUESDAY`와 `?day=MONDAY&day=TUESDAY`를 모두 지원합니다.
+
+강의시간이 없는 강좌는 `day` 필터에서는 제외되지만, `startAfter`·`endBefore`에서는 어떤 시간대와도 부딪히지 않으므로 남습니다.
+
+```bash
+curl "http://localhost:3000/api/courses?q=자료구조&day=MONDAY&size=5"
+```
+
+```json
+{
+  "page": 1,
+  "size": 5,
+  "total": 2,
+  "totalPages": 1,
+  "courses": [{ "id": "…", "name": "자료구조", "schedule": { "meetings": [] } }]
+}
+```
+
+잘못된 query는 `400`과 함께 어떤 값이 틀렸는지 알려줍니다.
+
+```json
+{
+  "error": {
+    "message": "잘못된 검색 조건입니다.",
+    "details": [{ "field": "size", "message": "Too big: expected number to be <=100" }]
+  }
+}
+```
 
 ## 품질 검사
 
@@ -123,7 +171,7 @@ docker run --rm \
 
 ```bash
 curl http://localhost:3000/api/health
-curl http://localhost:3000/api/catalog
+curl "http://localhost:3000/api/courses?size=1"
 ```
 
 이미지는 다단계 빌드를 사용하고 비 root `node` 사용자로 실행됩니다. Docker healthcheck는 `/api/health`를 확인합니다.
