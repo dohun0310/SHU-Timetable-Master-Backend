@@ -141,10 +141,11 @@ describe("ShinhanSapCourseCollector", () => {
       "학과 C",
       "학과 B",
     ]);
+    // 학과 번호는 단과대학별이 아니라 전체 기준이다. "[42/289] 간호학과"가 진행률을 말해 준다.
     expect(units.filter((unit) => unit.label.startsWith("학과"))).toEqual([
-      { type: "UNIT_COLLECTED", label: "학과 A", index: 1, total: 1, courses: 1 },
-      { type: "UNIT_COLLECTED", label: "학과 C", index: 1, total: 2, courses: 1 },
-      { type: "UNIT_COLLECTED", label: "학과 B", index: 2, total: 2, courses: 1 },
+      { type: "UNIT_COLLECTED", label: "학과 A", index: 1, total: 3, courses: 1 },
+      { type: "UNIT_COLLECTED", label: "학과 C", index: 2, total: 3, courses: 1 },
+      { type: "UNIT_COLLECTED", label: "학과 B", index: 3, total: 3, courses: 1 },
     ]);
   });
 
@@ -185,5 +186,65 @@ describe("ShinhanSapCourseCollector", () => {
     });
 
     await expect(new ShinhanSapCourseCollector(page).collect()).rejects.toThrow("학과 A");
+  });
+
+  it("collects the same courses whether it runs on one page or on several", async () => {
+    const sequential = await new ShinhanSapCourseCollector(fakePage()).collect();
+    const parallel = await new ShinhanSapCourseCollector([
+      fakePage(),
+      fakePage(),
+      fakePage(),
+    ]).collect();
+
+    expect(parallel).toEqual(sequential);
+  });
+
+  it("spreads the departments across every page it is given", async () => {
+    const pages = [fakePage(), fakePage(), fakePage()];
+
+    await new ShinhanSapCourseCollector(pages).collect();
+
+    // 학과 순회는 페이지마다 reset을 부른다. 일감이 나뉘었다면 첫 페이지만 일하지 않는다.
+    const searchesPerPage = pages.map((page) => vi.mocked(page.search).mock.calls.length);
+
+    expect(searchesPerPage[0]).toBeGreaterThan(0);
+    expect(searchesPerPage.slice(1).some((count) => count > 0)).toBe(true);
+  });
+
+  it("still reports every department once when it runs in parallel", async () => {
+    const progress: CollectionProgress[] = [];
+    await new ShinhanSapCourseCollector([fakePage(), fakePage()], (event) =>
+      progress.push(event),
+    ).collect();
+
+    const departments = progress
+      .filter((event) => event.type === "UNIT_COLLECTED")
+      .filter((unit) => unit.label.startsWith("학과"));
+
+    expect(departments.map((unit) => unit.label).sort()).toEqual(["학과 A", "학과 B", "학과 C"]);
+    expect(departments.every((unit) => unit.total === 3)).toBe(true);
+    expect(departments.map((unit) => unit.index).sort()).toEqual([1, 2, 3]);
+  });
+
+  it("reports a department the moment it finishes, not after the whole tab", async () => {
+    // 학과 순회는 30분 넘게 걸린다. 다 끝난 뒤 몰아서 알리면 그동안 아무것도 보이지 않는다.
+    const seen: string[] = [];
+    const page = fakePage();
+    const readRows = page.readRows;
+    page.readRows = vi.fn(async () => {
+      seen.push("수집");
+      return readRows();
+    });
+
+    await new ShinhanSapCourseCollector([page], (event) => {
+      if (event.type === "UNIT_COLLECTED" && event.label.startsWith("학과")) {
+        seen.push(`보고:${event.label}`);
+      }
+    }).collect();
+
+    // 학과 A를 보고한 뒤에도 수집이 더 남아 있어야 한다. 곧 보고가 수집과 섞여 흐른다는 뜻이다.
+    const firstReport = seen.indexOf("보고:학과 A");
+    expect(firstReport).toBeGreaterThanOrEqual(0);
+    expect(seen.slice(firstReport).filter((entry) => entry === "수집").length).toBeGreaterThan(0);
   });
 });
