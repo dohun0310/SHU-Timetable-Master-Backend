@@ -92,7 +92,10 @@ export class TimetableGenerator {
 
       for (const course of basket.courses) {
         visited += 1;
-        if (visited >= maxSearchNodes) break;
+        if (visited >= maxSearchNodes) {
+          exhausted = false;
+          break;
+        }
 
         if (
           constraints.maxCredits !== undefined &&
@@ -100,6 +103,10 @@ export class TimetableGenerator {
         ) {
           continue;
         }
+
+        // 같은 강좌를 두 바구니에 담을 수 있다. 강의시간이 없는 강좌는 자기 자신과도 겹치지 않아
+        // 충돌 검사만으로는 걸러지지 않으므로 id로 막는다.
+        if (chosen.some((picked) => picked.id === course.id)) continue;
         if (chosen.some((picked) => this.conflict(picked, course))) continue;
 
         chosen.push(course);

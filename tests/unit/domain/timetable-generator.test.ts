@@ -267,6 +267,35 @@ describe("TimetableGenerator", () => {
     expect(result.truncated).toBe(true);
   });
 
+  it("says the result was cut short when it gives up on the search itself", () => {
+    // 최소 학점은 마지막에만 검사하므로, 도달할 수 없는 값을 주면 가지치기 없이 트리를 다 훑는다.
+    // 탐색을 포기해 놓고 "시간표가 없다"고 단정하면 거짓말이 된다.
+    const days: Weekday[] = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
+    const baskets = Array.from({ length: 12 }, (_, basketIndex) =>
+      basket(
+        `과목${basketIndex}`,
+        Array.from({ length: 6 }, () =>
+          course(`과목${basketIndex}`, 1, [
+            meeting(days[basketIndex % 5]!, basketIndex + 1, basketIndex + 1),
+          ]),
+        ),
+      ),
+    );
+
+    const result = generate(baskets, { constraints: { minCredits: 999 } });
+
+    expect(result.count).toBe(0);
+    expect(result.truncated).toBe(true);
+  });
+
+  it("never puts the same course in one timetable twice", () => {
+    // 강의시간이 없는 강좌는 자기 자신과도 겹치지 않아 충돌 검사만으로는 중복을 막지 못한다.
+    const chapel = course("채플", 1, []);
+    const result = generate([basket("채플", [chapel]), basket("채플 재수강", [chapel])]);
+
+    expect(result.count).toBe(0);
+  });
+
   it("does not claim truncation when the results exactly fill the limit", () => {
     const sections = [1, 3].map((period) =>
       course("자료구조", 3, [meeting("MONDAY", period, period)]),
