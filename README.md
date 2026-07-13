@@ -74,14 +74,15 @@ yarn start
 
 ### API
 
-| 메서드 | 경로               | 설명                        |
-| ------ | ------------------ | --------------------------- |
-| `GET`  | `/api/courses`     | 강좌 검색·필터·페이지네이션 |
-| `GET`  | `/api/courses/:id` | 강좌 단건 조회              |
-| `GET`  | `/api/meta`        | 학기 정보와 필터 목록       |
-| `GET`  | `/api/health`      | 서버 및 로드된 강좌 수 확인 |
+| 메서드 | 경로                       | 설명                        |
+| ------ | -------------------------- | --------------------------- |
+| `GET`  | `/api/courses`             | 강좌 검색·필터·페이지네이션 |
+| `GET`  | `/api/courses/:id`         | 강좌 단건 조회              |
+| `GET`  | `/api/meta`                | 학기 정보와 필터 목록       |
+| `POST` | `/api/timetables/generate` | 시간표 조합 자동 생성       |
+| `GET`  | `/api/health`              | 서버 및 로드된 강좌 수 확인 |
 
-응답은 strong ETag와 `Cache-Control`을 제공하며 조건부 요청 시 `304 Not Modified`를 반환합니다.
+조회 응답은 strong ETag와 `Cache-Control`을 제공하며 조건부 요청 시 `304 Not Modified`를 반환합니다.
 
 #### `GET /api/courses`
 
@@ -126,6 +127,70 @@ curl "http://localhost:3000/api/courses?q=자료구조&day=MONDAY&size=5"
   "error": {
     "message": "잘못된 검색 조건입니다.",
     "details": [{ "field": "size", "message": "Too big: expected number to be <=100" }]
+  }
+}
+```
+
+#### `POST /api/timetables/generate`
+
+듣고 싶은 과목을 **바구니(basket)** 단위로 담아 보내면, 각 바구니에서 강좌를 하나씩 골라 시간이 겹치지 않으면서 제약을 만족하는 시간표 조합을 만들어 돌려줍니다.
+
+바구니 하나가 "듣고 싶은 과목 하나"입니다. 같은 과목의 여러 분반을 한 바구니에 담으면 그중 하나만 시간표에 들어갑니다. `required`가 `false`인 바구니는 비워질 수 있습니다.
+
+```bash
+curl -X POST http://localhost:3000/api/timetables/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "baskets": [
+      { "label": "자료구조", "courseIds": ["…-001", "…-002"] },
+      { "label": "교양", "required": false, "courseIds": ["…", "…"] }
+    ],
+    "constraints": {
+      "freeDays": ["FRIDAY"],
+      "avoidBefore": "10:00",
+      "avoidAfter": "18:00",
+      "credits": { "min": 15, "max": 18 }
+    },
+    "limit": 20
+  }'
+```
+
+| 필드                      | 기본값 | 설명                                       |
+| ------------------------- | ------ | ------------------------------------------ |
+| `baskets`                 | 필수   | 최대 20개. 바구니마다 강좌 후보 최대 100개 |
+| `baskets[].required`      | `true` | `false`면 이 바구니는 비워질 수 있음       |
+| `constraints.freeDays`    | 없음   | 이 요일에는 수업이 하나도 없어야 함        |
+| `constraints.avoidBefore` | 없음   | 모든 수업이 이 시각 이후에 시작            |
+| `constraints.avoidAfter`  | 없음   | 모든 수업이 이 시각 이전에 종료            |
+| `constraints.credits`     | 없음   | 총 학점의 `min`·`max`                      |
+| `limit`                   | `20`   | 돌려줄 시간표 최대 개수, 최대 `100`        |
+
+```json
+{
+  "count": 7,
+  "truncated": false,
+  "timetables": [
+    {
+      "courses": [{ "id": "…", "name": "자료구조" }],
+      "totalCredits": 17,
+      "days": ["MONDAY", "WEDNESDAY"],
+      "freeDays": ["TUESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]
+    }
+  ]
+}
+```
+
+후보가 많아 조합이 폭발하면 탐색을 중간에 끊고 `truncated`를 `true`로 알립니다. 이때 `count`개는 유효한 시간표이지만 더 있을 수 있습니다.
+
+충돌 판정은 **교시**를 기준으로 합니다. 강의시간이 없는 강좌(사이버 강의 등)는 어떤 강좌와도 겹치지 않으므로 항상 조합에 들어갑니다.
+
+강의시간을 온전히 알 수 없는 강좌(`PARTIALLY_PARSED`·`UNPARSED`)는 충돌을 판정할 수 없으므로 `400`으로 거부합니다. 잘못된 시간표를 조용히 만들어 주지 않기 위함입니다.
+
+```json
+{
+  "error": {
+    "message": "강의시간을 온전히 알 수 없어 시간표를 만들 수 없는 강좌가 있습니다: 드론프로젝트실습-캡스톤디자인",
+    "details": [{ "id": "…", "name": "드론프로젝트실습-캡스톤디자인" }]
   }
 }
 ```
