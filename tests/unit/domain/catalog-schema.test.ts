@@ -9,11 +9,11 @@ const course = {
   category: "MAJOR",
   categoryLabel: "전공",
   department: { id: "computer-engineering", name: "컴퓨터공학과" },
-  major: null,
+  majors: [],
   courseCode: "CSE101",
   classNumber: "01",
   name: "프로그래밍기초",
-  professor: "홍길동",
+  professors: ["홍길동"],
   credits: 3,
   hours: 3,
   schedule: {

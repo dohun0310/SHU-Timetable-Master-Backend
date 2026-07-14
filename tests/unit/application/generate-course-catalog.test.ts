@@ -11,8 +11,8 @@ const rawCourse = (overrides: Partial<RawCourse> = {}): RawCourse => ({
   lectureType: "",
   passFail: false,
   courseCode: "SW1001",
-  professor: "홍길동",
-  majorName: "소프트웨어학과",
+  professors: ["홍길동"],
+  majorNames: ["소프트웨어학과"],
   classTime: "월 1교시 09:00-09:50 (은혜관-2220-강의실)월 2교시 10:00-10:50 (은혜관-2220-강의실)",
   requirement: "전필",
   courseName: "소프트웨어개론",
@@ -51,6 +51,34 @@ describe("GenerateCourseCatalog", () => {
     ]);
     expect(catalog.filters.professors).toEqual([{ id: "홍길동", label: "홍길동", count: 2 }]);
     expect(catalog.filters.days).toEqual([{ id: "MONDAY", label: "월", count: 2 }]);
+  });
+
+  it("counts every professor and every major of a course on its own", () => {
+    // "김종규, 박흥경, 여우석" 이라는 존재하지 않는 한 명이 필터에 들어가면 안 된다.
+    const catalog = new GenerateCourseCatalog({
+      idGenerator: new DefaultCourseIdGenerator(),
+      scheduleParser: new KoreanPeriodScheduleParser(),
+    }).execute({
+      academicYear: 2026,
+      semester: "SECOND",
+      sourceUrl: "https://example.com/sap",
+      rawCourses: [
+        rawCourse({
+          professors: ["김종규", "박흥경"],
+          majorNames: ["미디어MD크리에이터", "영상콘텐츠 제작"],
+        }),
+      ],
+    });
+
+    expect(catalog.filters.professors).toEqual([
+      { id: "김종규", label: "김종규", count: 1 },
+      { id: "박흥경", label: "박흥경", count: 1 },
+    ]);
+    expect(catalog.filters.majors.map((major) => major.label)).toEqual([
+      "미디어MD크리에이터",
+      "영상콘텐츠 제작",
+    ]);
+    expect(catalog.courses[0]?.professors).toEqual(["김종규", "박흥경"]);
   });
 
   it("counts a day once per course even when the course meets twice that day", () => {

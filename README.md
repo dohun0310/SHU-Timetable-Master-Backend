@@ -86,37 +86,48 @@ yarn start
 
 #### `GET /api/courses`
 
-| Query        | 예시               | 설명                                                |
-| ------------ | ------------------ | --------------------------------------------------- |
-| `q`          | `자료구조`         | 강좌명·과목코드·교수 부분 일치 (공백·대소문자 무시) |
-| `category`   | `MAJOR,TEACHING`   | 강좌 분류                                           |
-| `department` | `소프트웨어학과`   | 학과                                                |
-| `major`      | `소프트웨어학과`   | 전공                                                |
-| `professor`  | `홍길동`           | 교수                                                |
-| `day`        | `MONDAY,WEDNESDAY` | 해당 요일에 수업이 있는 강좌                        |
-| `startAfter` | `10:00`            | 모든 수업이 이 시각 이후에 시작                     |
-| `endBefore`  | `18:00`            | 모든 수업이 이 시각 이전에 종료                     |
-| `minCredits` | `3`                | 최소 학점                                           |
-| `maxCredits` | `3`                | 최대 학점                                           |
-| `page`       | `2`                | 페이지 번호, 1부터 시작 (기본 `1`)                  |
-| `size`       | `50`               | 페이지 크기, 최대 `100` (기본 `20`)                 |
-| `sort`       | `credits`          | `name` 또는 `credits` (기본 `name`)                 |
+| Query        | 예시               | 설명                                                  |
+| ------------ | ------------------ | ----------------------------------------------------- |
+| `q`          | `자료구조`         | 강좌명·과목코드·교수 부분 일치 (공백·대소문자 무시)   |
+| `category`   | `MAJOR,TEACHING`   | 강좌 분류                                             |
+| `department` | `소프트웨어학과`   | 학과                                                  |
+| `major`      | `영상콘텐츠 제작`  | 전공. 강좌가 여러 전공에 걸치면 그중 하나만 맞아도 됨 |
+| `professor`  | `홍길동`           | 교수. 공동 강의면 그중 한 명만 맞아도 됨              |
+| `day`        | `MONDAY,WEDNESDAY` | 해당 요일에 수업이 있는 강좌                          |
+| `startAfter` | `10:00`            | 모든 수업이 이 시각 이후에 시작                       |
+| `endBefore`  | `18:00`            | 모든 수업이 이 시각 이전에 종료                       |
+| `minCredits` | `3`                | 최소 학점                                             |
+| `maxCredits` | `3`                | 최대 학점                                             |
+| `page`       | `2`                | 페이지 번호, 1부터 시작 (기본 `1`)                    |
+| `size`       | `50`               | 페이지 크기, 최대 `100` (기본 `20`)                   |
+| `sort`       | `credits`          | `name` 또는 `credits` (기본 `name`)                   |
 
 같은 필터에 값을 여러 개 주면 OR로, 서로 다른 필터는 AND로 묶입니다. 값이 여러 개일 때는 `?day=MONDAY,TUESDAY`와 `?day=MONDAY&day=TUESDAY`를 모두 지원합니다.
 
 강의시간이 없는 강좌는 `day` 필터에서는 제외되지만, `startAfter`·`endBefore`에서는 어떤 시간대와도 부딪히지 않으므로 남습니다.
 
+한 강좌를 여러 교수가 가르치고 여러 전공에 걸칠 수 있어 `professors`와 `majors`는 목록입니다. 주관학과(`department`)는 언제나 하나입니다. 필터는 목록 안의 값 하나만 맞아도 걸리므로, 공동 강의 교수 한 명으로도 강좌를 찾을 수 있습니다.
+
 ```bash
-curl "http://localhost:3000/api/courses?q=자료구조&day=MONDAY&size=5"
+curl "http://localhost:3000/api/courses?professor=박흥경"
 ```
 
 ```json
 {
   "page": 1,
-  "size": 5,
-  "total": 2,
+  "size": 20,
+  "total": 1,
   "totalPages": 1,
-  "courses": [{ "id": "…", "name": "자료구조", "schedule": { "meetings": [] } }]
+  "courses": [
+    {
+      "id": "…",
+      "name": "기본간호학실습(2)",
+      "department": { "id": "간호학과", "name": "간호학과" },
+      "majors": [{ "id": "간호학과", "name": "간호학과" }],
+      "professors": ["김종규", "박흥경", "여우석"],
+      "schedule": { "meetings": [] }
+    }
+  ]
 }
 ```
 

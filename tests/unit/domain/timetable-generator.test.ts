@@ -45,11 +45,11 @@ const course = (name: string, credits: number, meetings: CourseMeeting[]): Cours
     category: "MAJOR",
     categoryLabel: "학과/전공",
     department: null,
-    major: null,
+    majors: [],
     courseCode: `C${sequence}`,
     classNumber: "001",
     name,
-    professor: null,
+    professors: [],
     credits,
     hours: credits,
     schedule: {

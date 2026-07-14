@@ -56,12 +56,12 @@ describe("SapCourseRowParser", () => {
       lectureType: "이론",
       passFail: false,
       courseCode: "GE61002",
-      professor: "홍길동",
+      professors: ["홍길동"],
       classTime: "월 1교시 09:00-09:50",
       requirement: "필수",
       courseName: "기독교의 이해",
       departmentName: "리나시타교양대학",
-      majorName: "교양전공",
+      majorNames: ["교양전공"],
       capacity: 40,
       classNumber: "001",
       credits: 1,
@@ -75,7 +75,7 @@ describe("SapCourseRowParser", () => {
     const course = parser.parse(cells({ 주관학과: "간호학과", 전공: "간호학전공" }), basic);
 
     expect(course.departmentName).toBe("간호학과");
-    expect(course.majorName).toBe("간호학전공");
+    expect(course.majorNames).toEqual(["간호학전공"]);
   });
 
   it("keeps one name when SAP lists the same major twice", () => {
@@ -83,19 +83,27 @@ describe("SapCourseRowParser", () => {
     // 학과 필터가 둘로 갈라진다.
     const course = parser.parse(cells({ 전공: "간호학과\n간호학과" }), basic);
 
-    expect(course.majorName).toBe("간호학과");
+    expect(course.majorNames).toEqual(["간호학과"]);
   });
 
   it("keeps every distinct name when SAP lists several majors", () => {
     const course = parser.parse(cells({ 전공: "미디어MD크리에이터\n영상콘텐츠 제작" }), basic);
 
-    expect(course.majorName).toBe("미디어MD크리에이터, 영상콘텐츠 제작");
+    expect(course.majorNames).toEqual(["미디어MD크리에이터", "영상콘텐츠 제작"]);
+  });
+
+  it("keeps a comma inside a single name instead of splitting it", () => {
+    // "베이커리, 카페 창업" 은 쉼표가 든 하나의 마이크로디그리 과정명이다.
+    // 값을 한 문자열로 이어 붙이면 두 전공과 구분할 수 없다.
+    const course = parser.parse(cells({ 전공: "베이커리, 카페 창업" }), basic);
+
+    expect(course.majorNames).toEqual(["베이커리, 카페 창업"]);
   });
 
   it("keeps every professor when a course is taught by more than one", () => {
     const course = parser.parse(cells({ 담당교수: "배진택\n임채훈" }), basic);
 
-    expect(course.professor).toBe("배진택, 임채훈");
+    expect(course.professors).toEqual(["배진택", "임채훈"]);
   });
 
   it("keeps the class time as SAP lists it, one meeting per line", () => {
@@ -127,9 +135,9 @@ describe("SapCourseRowParser", () => {
       ),
     ).toMatchObject({
       courseCode: "KP30002",
-      professor: "배진택, 임채훈",
+      professors: ["배진택", "임채훈"],
       departmentName: "K-POP학과",
-      majorName: "K-POP학과",
+      majorNames: ["K-POP학과"],
       capacity: 24,
       courseName: "캡스톤디자인(졸업공연제작)",
       credits: 3,
