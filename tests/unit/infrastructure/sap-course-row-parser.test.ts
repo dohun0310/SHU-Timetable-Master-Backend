@@ -92,6 +92,14 @@ describe("SapCourseRowParser", () => {
     expect(course.majorNames).toEqual(["미디어MD크리에이터", "영상콘텐츠 제작"]);
   });
 
+  it("keeps a comma inside a single name instead of splitting it", () => {
+    // "베이커리, 카페 창업" 은 쉼표가 든 하나의 마이크로디그리 과정명이다.
+    // 값을 한 문자열로 이어 붙이면 두 전공과 구분할 수 없다.
+    const course = parser.parse(cells({ 전공: "베이커리, 카페 창업" }), basic);
+
+    expect(course.majorNames).toEqual(["베이커리, 카페 창업"]);
+  });
+
   it("keeps every professor when a course is taught by more than one", () => {
     const course = parser.parse(cells({ 담당교수: "배진택\n임채훈" }), basic);
 

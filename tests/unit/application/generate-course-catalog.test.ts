@@ -53,6 +53,34 @@ describe("GenerateCourseCatalog", () => {
     expect(catalog.filters.days).toEqual([{ id: "MONDAY", label: "월", count: 2 }]);
   });
 
+  it("counts every professor and every major of a course on its own", () => {
+    // "김종규, 박흥경, 여우석" 이라는 존재하지 않는 한 명이 필터에 들어가면 안 된다.
+    const catalog = new GenerateCourseCatalog({
+      idGenerator: new DefaultCourseIdGenerator(),
+      scheduleParser: new KoreanPeriodScheduleParser(),
+    }).execute({
+      academicYear: 2026,
+      semester: "SECOND",
+      sourceUrl: "https://example.com/sap",
+      rawCourses: [
+        rawCourse({
+          professors: ["김종규", "박흥경"],
+          majorNames: ["미디어MD크리에이터", "영상콘텐츠 제작"],
+        }),
+      ],
+    });
+
+    expect(catalog.filters.professors).toEqual([
+      { id: "김종규", label: "김종규", count: 1 },
+      { id: "박흥경", label: "박흥경", count: 1 },
+    ]);
+    expect(catalog.filters.majors.map((major) => major.label)).toEqual([
+      "미디어MD크리에이터",
+      "영상콘텐츠 제작",
+    ]);
+    expect(catalog.courses[0]?.professors).toEqual(["김종규", "박흥경"]);
+  });
+
   it("counts a day once per course even when the course meets twice that day", () => {
     const catalog = new GenerateCourseCatalog({
       idGenerator: new DefaultCourseIdGenerator(),

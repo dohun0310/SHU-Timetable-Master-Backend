@@ -155,6 +155,42 @@ describe("SearchCourses", () => {
     expect(namesOf(search.execute(query({ professors: ["홍길동"] })))).toEqual(["자료구조"]);
   });
 
+  it("finds a course by any one of the professors who teach it together", () => {
+    // 공동 강의 교수 한 명으로도 강좌를 찾을 수 있어야 한다.
+    const team = new SearchCourses(
+      catalogOf([
+        course({
+          id: "team-001",
+          name: "간호실습",
+          professors: ["김종규", "박흥경", "여우석"],
+        }),
+      ]),
+    );
+
+    expect(namesOf(team.execute(query({ professors: ["박흥경"] })))).toEqual(["간호실습"]);
+    expect(namesOf(team.execute(query({ keyword: "여우석" })))).toEqual(["간호실습"]);
+  });
+
+  it("finds a course by any one of the majors it belongs to", () => {
+    const shared = new SearchCourses(
+      catalogOf([
+        course({
+          id: "shared-001",
+          name: "영상제작",
+          majors: [
+            { id: "미디어md크리에이터", name: "미디어MD크리에이터" },
+            { id: "영상콘텐츠-제작", name: "영상콘텐츠 제작" },
+          ],
+        }),
+      ]),
+    );
+
+    expect(namesOf(shared.execute(query({ majorIds: ["영상콘텐츠-제작"] })))).toEqual(["영상제작"]);
+    expect(namesOf(shared.execute(query({ majorIds: ["미디어md크리에이터"] })))).toEqual([
+      "영상제작",
+    ]);
+  });
+
   it("keeps a course that meets on any requested day", () => {
     expect(idsOf(search.execute(query({ days: ["TUESDAY"] })))).toEqual([
       "2026-second-sw1001-002-소프트웨어학과",
