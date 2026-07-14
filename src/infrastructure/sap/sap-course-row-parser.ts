@@ -28,14 +28,15 @@ function text(cells: string[], index: number): string {
 }
 
 // SAP은 한 셀에 값을 여러 줄로 담는다. 교수 두 명, 전공 두 개가 한 칸에 들어온다.
-// 같은 값이 반복되기도 하므로 중복을 지우고 남은 값을 모두 지킨다.
-function joinDistinctLines(value: string): string {
+// 줄이 값의 경계다. 이름 안의 쉼표("베이커리, 카페 창업")를 값 구분으로 착각하지 않으려면
+// 문자열로 이어 붙이지 말고 목록으로 남겨야 한다. 같은 값이 반복되기도 하므로 중복은 지운다.
+function distinctLines(value: string): string[] {
   const lines = value
     .split("\n")
     .map((line) => line.trim())
     .filter(Boolean);
 
-  return [...new Set(lines)].join(", ");
+  return [...new Set(lines)];
 }
 
 function nullableNumber(cells: string[], index: number): number | null {
@@ -65,9 +66,8 @@ export class SapCourseRowParser {
       throw new Error("SAP 강좌 행에 과목코드가 없습니다.");
     }
 
-    const professor = joinDistinctLines(text(cells, columns.professor));
-    const departmentName = joinDistinctLines(text(cells, columns.departmentName));
-    const majorName = joinDistinctLines(text(cells, columns.majorName));
+    // 주관학과는 실제 데이터에서 언제나 하나다. 여러 줄이 오면 첫 줄을 쓴다.
+    const [departmentName] = distinctLines(text(cells, columns.departmentName));
     const creditHours = parseCreditHours(text(cells, columns.creditHours));
 
     return {
@@ -76,9 +76,9 @@ export class SapCourseRowParser {
       lectureType: text(cells, columns.lectureType),
       passFail: text(cells, columns.passFail).length > 0,
       courseCode,
-      professor: professor.length > 0 ? professor : null,
-      departmentName: departmentName.length > 0 ? departmentName : null,
-      majorName: majorName.length > 0 ? majorName : null,
+      professors: distinctLines(text(cells, columns.professor)),
+      departmentName: departmentName ?? null,
+      majorNames: distinctLines(text(cells, columns.majorName)),
       // 강의시간은 줄 구분을 그대로 지킨다. 한 줄이 한 교시다.
       classTime: text(cells, columns.classTime),
       requirement: text(cells, columns.requirement),

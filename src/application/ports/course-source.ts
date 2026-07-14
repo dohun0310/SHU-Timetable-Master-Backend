@@ -6,8 +6,9 @@ export interface RawCourse {
   lectureType: string;
   passFail: boolean;
   courseCode: string;
-  professor: string | null;
-  majorName: string | null;
+  // 한 강좌를 여러 교수가 가르치고 여러 전공에 걸칠 수 있다. 주관학과는 언제나 하나다.
+  professors: string[];
+  majorNames: string[];
   classTime: string;
   requirement: string;
   courseName: string;

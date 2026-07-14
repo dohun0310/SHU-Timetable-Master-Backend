@@ -36,13 +36,19 @@ function normalize(text: string): string {
 }
 
 function matchesKeyword(course: Course, keyword: string): boolean {
-  const haystack = normalize(`${course.name}${course.courseCode}${course.professor ?? ""}`);
+  const haystack = normalize(`${course.name}${course.courseCode}${course.professors.join("")}`);
   return haystack.includes(normalize(keyword));
 }
 
 function includedIn(values: string[] | undefined, candidate: string | null): boolean {
   if (!values || values.length === 0) return true;
   return candidate !== null && values.includes(candidate);
+}
+
+// 강좌가 값을 여럿 가질 때는 하나만 맞아도 된다. 공동 강의 교수 한 명으로도 강좌를 찾을 수 있어야 한다.
+function overlaps(values: string[] | undefined, candidates: string[]): boolean {
+  if (!values || values.length === 0) return true;
+  return candidates.some((candidate) => values.includes(candidate));
 }
 
 export class SearchCourses {
@@ -77,8 +83,14 @@ export class SearchCourses {
     if (query.keyword && !matchesKeyword(course, query.keyword)) return false;
     if (query.categories?.length && !query.categories.includes(course.category)) return false;
     if (!includedIn(query.departmentIds, course.department?.id ?? null)) return false;
-    if (!includedIn(query.majorIds, course.major?.id ?? null)) return false;
-    if (!includedIn(query.professors, course.professor)) return false;
+    if (
+      !overlaps(
+        query.majorIds,
+        course.majors.map((major) => major.id),
+      )
+    )
+      return false;
+    if (!overlaps(query.professors, course.professors)) return false;
     if (query.minCredits !== undefined && course.credits < query.minCredits) return false;
     if (query.maxCredits !== undefined && course.credits > query.maxCredits) return false;
 

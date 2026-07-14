@@ -11,11 +11,11 @@ const course = (overrides: Partial<Course> = {}): Course => ({
   category: "MAJOR",
   categoryLabel: "학과/전공",
   department: { id: "소프트웨어학과", name: "소프트웨어학과" },
-  major: { id: "소프트웨어학과", name: "소프트웨어학과" },
+  majors: [{ id: "소프트웨어학과", name: "소프트웨어학과" }],
   courseCode: "SW1001",
   classNumber: "001",
   name: "자료구조",
-  professor: "홍길동",
+  professors: ["홍길동"],
   credits: 3,
   hours: 3,
   schedule: {
@@ -44,10 +44,10 @@ const courses = [
     category: "CORE_LIBERAL_ARTS",
     categoryLabel: "핵심교양",
     department: { id: "리나시타교양대학", name: "리나시타교양대학" },
-    major: { id: "리나시타교양대학", name: "리나시타교양대학" },
+    majors: [{ id: "리나시타교양대학", name: "리나시타교양대학" }],
     courseCode: "GE70011",
     name: "영어회화",
-    professor: "김영희",
+    professors: ["김영희"],
     credits: 2,
     hours: 2,
     schedule: {
@@ -71,10 +71,10 @@ const courses = [
     category: "BASIC_LIBERAL_ARTS",
     categoryLabel: "기초교양",
     department: { id: "리나시타교양대학", name: "리나시타교양대학" },
-    major: { id: "리나시타교양대학", name: "리나시타교양대학" },
+    majors: [{ id: "리나시타교양대학", name: "리나시타교양대학" }],
     courseCode: "GE61002",
     name: "기독교의 이해",
-    professor: "강성현",
+    professors: ["강성현"],
     credits: 1,
     hours: 1,
     schedule: { raw: "", parseStatus: "NO_SCHEDULE", meetings: [] },
@@ -189,7 +189,7 @@ describe("GET /api/courses/:id", () => {
       .get("/api/courses/2026-second-ge70011-001-리나시타교양대학")
       .expect(200);
 
-    expect(response.body).toMatchObject({ name: "영어회화", professor: "김영희" });
+    expect(response.body).toMatchObject({ name: "영어회화", professors: ["김영희"] });
   });
 
   it("returns 404 for an unknown course", async () => {

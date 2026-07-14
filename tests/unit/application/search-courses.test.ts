@@ -22,11 +22,11 @@ const course = (overrides: Partial<Course> = {}): Course => ({
   category: "MAJOR",
   categoryLabel: "학과/전공",
   department: { id: "소프트웨어학과", name: "소프트웨어학과" },
-  major: { id: "소프트웨어학과", name: "소프트웨어학과" },
+  majors: [{ id: "소프트웨어학과", name: "소프트웨어학과" }],
   courseCode: "SW1001",
   classNumber: "001",
   name: "자료구조",
-  professor: "홍길동",
+  professors: ["홍길동"],
   credits: 3,
   hours: 3,
   schedule: {
@@ -41,7 +41,7 @@ const course = (overrides: Partial<Course> = {}): Course => ({
 const dataStructures002 = course({
   id: "2026-second-sw1001-002-소프트웨어학과",
   classNumber: "002",
-  professor: "김영희",
+  professors: ["김영희"],
   schedule: {
     raw: "화 5교시 13:00-13:50",
     parseStatus: "PARSED",
@@ -54,10 +54,10 @@ const cyberCourse = course({
   category: "BASIC_LIBERAL_ARTS",
   categoryLabel: "기초교양",
   department: { id: "리나시타교양대학", name: "리나시타교양대학" },
-  major: { id: "리나시타교양대학", name: "리나시타교양대학" },
+  majors: [{ id: "리나시타교양대학", name: "리나시타교양대학" }],
   courseCode: "GE61002",
   name: "기독교의 이해",
-  professor: "강성현",
+  professors: ["강성현"],
   credits: 1,
   hours: 1,
   schedule: { raw: "", parseStatus: "NO_SCHEDULE", meetings: [] },
@@ -68,10 +68,10 @@ const englishConversation = course({
   category: "CORE_LIBERAL_ARTS",
   categoryLabel: "핵심교양",
   department: { id: "리나시타교양대학", name: "리나시타교양대학" },
-  major: { id: "리나시타교양대학", name: "리나시타교양대학" },
+  majors: [{ id: "리나시타교양대학", name: "리나시타교양대학" }],
   courseCode: "GE70011",
   name: "영어회화",
-  professor: "John Kim",
+  professors: ["John Kim"],
   credits: 2,
   hours: 2,
   schedule: {
@@ -83,17 +83,20 @@ const englishConversation = course({
 
 const courses = [course(), dataStructures002, cyberCourse, englishConversation];
 
-const catalog = catalogSchema.parse({
-  meta: {
-    academicYear: 2026,
-    semester: "SECOND",
-    generatedAt: "2026-07-12T00:00:00.000Z",
-    source: "https://example.com/sap",
-    courseCount: courses.length,
-  },
-  filters: { categories: [], departments: [], majors: [], professors: [], days: [] },
-  courses,
-});
+const catalogOf = (of: Course[]) =>
+  catalogSchema.parse({
+    meta: {
+      academicYear: 2026,
+      semester: "SECOND",
+      generatedAt: "2026-07-12T00:00:00.000Z",
+      source: "https://example.com/sap",
+      courseCount: of.length,
+    },
+    filters: { categories: [], departments: [], majors: [], professors: [], days: [] },
+    courses: of,
+  });
+
+const catalog = catalogOf(courses);
 
 const search = new SearchCourses(catalog);
 const query = (overrides: Partial<CourseQuery> = {}): CourseQuery => ({
