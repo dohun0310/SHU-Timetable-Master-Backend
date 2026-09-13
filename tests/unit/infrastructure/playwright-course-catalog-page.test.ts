@@ -2,15 +2,27 @@ import { describe, expect, it, vi } from "vitest";
 
 import { PlaywrightCourseCatalogPage } from "../../../src/infrastructure/sap/playwright-course-catalog-page.js";
 
+// 세션이 이미 있으면 SAP은 로그온 폼을 그리지 않는다.
+function loggedInLocator() {
+  return {
+    count: vi.fn().mockResolvedValue(0),
+    click: vi.fn().mockResolvedValue(undefined),
+    fill: vi.fn().mockResolvedValue(undefined),
+    press: vi.fn().mockResolvedValue(undefined),
+  };
+}
+
 describe("PlaywrightCourseCatalogPage", () => {
   it("opens the configured URL and selects the academic period by stable SAP keys", async () => {
     const yearButton = { click: vi.fn().mockResolvedValue(undefined) };
     const semesterButton = { click: vi.fn().mockResolvedValue(undefined) };
     const yearOption = { click: vi.fn().mockResolvedValue(undefined) };
     const semesterOption = { click: vi.fn().mockResolvedValue(undefined) };
+    const loggedInInput = loggedInLocator();
     const page = {
       goto: vi.fn().mockResolvedValue(undefined),
       locator: vi.fn((selector: string) => {
+        if (selector === "#sap-user" || selector === "#sap-password") return loggedInInput;
         if (selector === "#year-button") return yearButton;
         if (selector === "#semester-button") return semesterButton;
         if (selector.includes('data-itemkey="2026"')) return yearOption;
@@ -31,7 +43,10 @@ describe("PlaywrightCourseCatalogPage", () => {
         academicYearButton: "#year-button",
         semesterButton: "#semester-button",
         optionItems: '[ct="LIB_I"]',
+        userInput: "#sap-user",
+        passwordInput: "#sap-password",
       },
+      credentials: { user: "collector", password: "secret" },
       browserType,
     });
 
@@ -60,7 +75,10 @@ describe("PlaywrightCourseCatalogPage", () => {
         academicYearButton: "#year-button",
         semesterButton: "#semester-button",
         optionItems: '[ct="LIB_I"]',
+        userInput: "#sap-user",
+        passwordInput: "#sap-password",
       },
+      credentials: { user: "collector", password: "secret" },
       browserType: { launch: vi.fn() },
     });
 
@@ -79,14 +97,17 @@ describe("PlaywrightCourseCatalogPage", () => {
     };
     const semesterButton = { click: vi.fn().mockResolvedValue(undefined) };
     const option = { click: vi.fn().mockResolvedValue(undefined) };
+    const loggedInInput = loggedInLocator();
     const page = {
       goto: vi.fn().mockResolvedValue(undefined),
       locator: vi.fn((selector: string) =>
-        selector === "#year-button"
-          ? yearButton
-          : selector === "#semester-button"
-            ? semesterButton
-            : option,
+        selector === "#sap-user" || selector === "#sap-password"
+          ? loggedInInput
+          : selector === "#year-button"
+            ? yearButton
+            : selector === "#semester-button"
+              ? semesterButton
+              : option,
       ),
       screenshot: vi.fn().mockResolvedValue(undefined),
       waitForFunction: vi.fn().mockResolvedValue(undefined),
@@ -102,7 +123,10 @@ describe("PlaywrightCourseCatalogPage", () => {
         academicYearButton: "#year-button",
         semesterButton: "#semester-button",
         optionItems: '[ct="LIB_I"]',
+        userInput: "#sap-user",
+        passwordInput: "#sap-password",
       },
+      credentials: { user: "collector", password: "secret" },
       browserType: { launch: vi.fn().mockResolvedValue(browser) },
     });
 
@@ -121,14 +145,17 @@ describe("PlaywrightCourseCatalogPage", () => {
     };
     const semesterButton = { click: vi.fn().mockResolvedValue(undefined) };
     const option = { click: vi.fn().mockResolvedValue(undefined) };
+    const loggedInInput = loggedInLocator();
     const page = {
       goto: vi.fn().mockResolvedValue(undefined),
       locator: vi.fn((selector: string) =>
-        selector === "#year-button"
-          ? yearButton
-          : selector === "#semester-button"
-            ? semesterButton
-            : option,
+        selector === "#sap-user" || selector === "#sap-password"
+          ? loggedInInput
+          : selector === "#year-button"
+            ? yearButton
+            : selector === "#semester-button"
+              ? semesterButton
+              : option,
       ),
       screenshot: vi.fn().mockRejectedValue(new Error("screenshot failed")),
       waitForFunction: vi.fn().mockResolvedValue(undefined),
@@ -144,7 +171,10 @@ describe("PlaywrightCourseCatalogPage", () => {
         academicYearButton: "#year-button",
         semesterButton: "#semester-button",
         optionItems: '[ct="LIB_I"]',
+        userInput: "#sap-user",
+        passwordInput: "#sap-password",
       },
+      credentials: { user: "collector", password: "secret" },
       browserType: { launch: vi.fn().mockResolvedValue(browser) },
     });
 
@@ -156,5 +186,84 @@ describe("PlaywrightCourseCatalogPage", () => {
     );
     expect(page.goto).toHaveBeenCalledTimes(4);
     expect(page.screenshot).toHaveBeenCalledTimes(3);
+  });
+
+  it("submits the logon form when SAP asks for credentials", async () => {
+    const userInput = {
+      count: vi.fn().mockResolvedValue(1),
+      click: vi.fn().mockResolvedValue(undefined),
+      fill: vi.fn().mockResolvedValue(undefined),
+      press: vi.fn().mockResolvedValue(undefined),
+    };
+    const passwordInput = {
+      count: vi.fn().mockResolvedValue(1),
+      click: vi.fn().mockResolvedValue(undefined),
+      fill: vi.fn().mockResolvedValue(undefined),
+      press: vi.fn().mockResolvedValue(undefined),
+    };
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      locator: vi.fn((selector: string) => (selector === "#sap-user" ? userInput : passwordInput)),
+      screenshot: vi.fn().mockResolvedValue(undefined),
+      waitForFunction: vi.fn().mockResolvedValue(undefined),
+    };
+    const browser = {
+      newPage: vi.fn().mockResolvedValue(page),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const catalogPage = new PlaywrightCourseCatalogPage({
+      url: "https://example.com/catalog",
+      headless: true,
+      selectors: {
+        academicYearButton: "#year-button",
+        semesterButton: "#semester-button",
+        optionItems: '[ct="LIB_I"]',
+        userInput: "#sap-user",
+        passwordInput: "#sap-password",
+      },
+      credentials: { user: "collector", password: "secret" },
+      browserType: { launch: vi.fn().mockResolvedValue(browser) },
+    });
+
+    await catalogPage.open();
+
+    expect(userInput.fill).toHaveBeenCalledWith("collector");
+    expect(passwordInput.fill).toHaveBeenCalledWith("secret");
+    expect(passwordInput.press).toHaveBeenCalledWith("Enter");
+  });
+
+  it("reports a login failure when the logon form stays on screen", async () => {
+    const credentialInput = {
+      count: vi.fn().mockResolvedValue(1),
+      click: vi.fn().mockResolvedValue(undefined),
+      fill: vi.fn().mockResolvedValue(undefined),
+      press: vi.fn().mockResolvedValue(undefined),
+    };
+    const page = {
+      goto: vi.fn().mockResolvedValue(undefined),
+      locator: vi.fn(() => credentialInput),
+      screenshot: vi.fn().mockResolvedValue(undefined),
+      // 잘못된 자격 증명이면 로그온 폼이 사라지지 않아 대기가 실패한다.
+      waitForFunction: vi.fn().mockRejectedValue(new Error("timeout")),
+    };
+    const browser = {
+      newPage: vi.fn().mockResolvedValue(page),
+      close: vi.fn().mockResolvedValue(undefined),
+    };
+    const catalogPage = new PlaywrightCourseCatalogPage({
+      url: "https://example.com/catalog",
+      headless: true,
+      selectors: {
+        academicYearButton: "#year-button",
+        semesterButton: "#semester-button",
+        optionItems: '[ct="LIB_I"]',
+        userInput: "#sap-user",
+        passwordInput: "#sap-password",
+      },
+      credentials: { user: "collector", password: "wrong" },
+      browserType: { launch: vi.fn().mockResolvedValue(browser) },
+    });
+
+    await expect(catalogPage.open()).rejects.toThrow("SAP 로그인 실패: 자격 증명을 확인하세요.");
   });
 });

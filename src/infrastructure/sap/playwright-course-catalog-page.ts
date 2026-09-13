@@ -13,6 +13,12 @@ interface ClickLocator {
   click(): Promise<unknown>;
 }
 
+interface FillLocator extends ClickLocator {
+  count(): Promise<number>;
+  fill(value: string): Promise<unknown>;
+  press(key: string): Promise<unknown>;
+}
+
 interface BrowserPage {
   goto(url: string, options: { waitUntil: "domcontentloaded" }): Promise<unknown>;
   locator(selector: string): ClickLocator;
@@ -36,14 +42,22 @@ export interface SapPageSelectors {
   academicYearButton: string;
   semesterButton: string;
   optionItems: string;
+  userInput: string;
+  passwordInput: string;
 }
 
 export interface PlaywrightCourseCatalogPageOptions {
   url: string;
   headless: boolean;
   selectors: SapPageSelectors;
+  credentials: SapCredentials;
   browserType?: BrowserLauncher;
   failureScreenshotPath?: string;
+}
+
+export interface SapCredentials {
+  user: string;
+  password: string;
 }
 
 export class PlaywrightCourseCatalogPage implements CourseCatalogPage {
@@ -63,6 +77,37 @@ export class PlaywrightCourseCatalogPage implements CourseCatalogPage {
     this.browser = await this.browserType.launch({ headless: this.options.headless });
     this.page = await this.browser.newPage();
     await this.page.goto(this.options.url, { waitUntil: "domcontentloaded" });
+    await this.logIn();
+  }
+
+  // 개설과목 조회 화면은 SAP 로그온을 요구한다. 이미 세션이 있으면 로그온 폼이 나오지 않는다.
+  private async logIn(): Promise<void> {
+    if (!this.page) {
+      throw new Error("SAP 강좌 페이지가 열리지 않았습니다.");
+    }
+
+    const userInput = this.page.locator(this.options.selectors.userInput) as FillLocator;
+    if ((await userInput.count()) === 0) {
+      return;
+    }
+
+    const passwordInput = this.page.locator(this.options.selectors.passwordInput) as FillLocator;
+    await userInput.fill(this.options.credentials.user);
+    await passwordInput.fill(this.options.credentials.password);
+    await passwordInput.press("Enter");
+
+    // 자격 증명이 틀리면 SAP은 같은 로그온 폼을 다시 보여준다.
+    const stillOnLoginForm = await this.page
+      .waitForFunction(({ selector }) => document.querySelector(selector) === null, {
+        selector: this.options.selectors.userInput,
+        itemKey: "",
+      })
+      .then(() => false)
+      .catch(() => true);
+
+    if (stillOnLoginForm) {
+      throw new Error("SAP 로그인 실패: 자격 증명을 확인하세요.");
+    }
   }
 
   async selectAcademicPeriod(academicYear: number, semester: Semester): Promise<void> {
@@ -147,4 +192,6 @@ export const shinhanSapPageSelectors: SapPageSelectors = {
   academicYearButton: "#WD25-btn",
   semesterButton: "#WD76-btn",
   optionItems: '[ct="LIB_I"]',
+  userInput: "#sap-user",
+  passwordInput: "#sap-password",
 };
