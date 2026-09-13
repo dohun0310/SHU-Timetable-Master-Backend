@@ -40,9 +40,8 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    corepack enable
-                    yarn install --immutable
-                    yarn playwright:install
+                    corepack yarn install --immutable
+                    corepack yarn playwright:install
                 '''
             }
         }
@@ -54,7 +53,7 @@ pipeline {
                         set -eu
                         trap 'rm -f .env' EXIT HUP INT TERM
                         cp "${APP_ENV_FILE}" .env
-                        yarn catalog:generate
+                        corepack yarn catalog:generate
                         test -s generated/catalog.json
                     '''
                 }
@@ -65,10 +64,10 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    yarn lint
-                    yarn format:check
-                    yarn typecheck
-                    yarn test
+                    corepack yarn lint
+                    corepack yarn format:check
+                    corepack yarn typecheck
+                    corepack yarn test
                 '''
             }
         }
