@@ -27,6 +27,11 @@ interface BrowserPage {
     callback: (input: { selector: string; itemKey: string }) => boolean,
     input: { selector: string; itemKey: string },
   ): Promise<unknown>;
+  evaluate<Result, Argument>(
+    callback: (argument: Argument) => Result,
+    argument: Argument,
+  ): Promise<Result>;
+  waitForTimeout(milliseconds: number): Promise<unknown>;
 }
 
 interface BrowserInstance {
@@ -39,8 +44,10 @@ interface BrowserLauncher {
 }
 
 export interface SapPageSelectors {
-  academicYearButton: string;
-  semesterButton: string;
+  // 전역 조회 조건(대학구분·학년도·학기)에서 각 콤보가 놓인 자리.
+  // SAP은 화면마다 콤보 ID를 다시 매기므로 ID를 박아 두면 로그인 화면에서 어긋난다.
+  academicYearIndex: number;
+  semesterIndex: number;
   optionItems: string;
   userInput: string;
   passwordInput: string;
@@ -76,8 +83,23 @@ export class PlaywrightCourseCatalogPage implements CourseCatalogPage {
   async open(): Promise<void> {
     this.browser = await this.browserType.launch({ headless: this.options.headless });
     this.page = await this.browser.newPage();
-    await this.page.goto(this.options.url, { waitUntil: "domcontentloaded" });
+    await this.openUrl();
     await this.logIn();
+  }
+
+  // 인증된 세션에서는 SAP이 세션 파라미터를 붙여 스스로 다시 이동한다.
+  // 그 자체 이동이 우리의 명시적 이동을 끊으므로 실패로 보지 않는다.
+  private async openUrl(): Promise<void> {
+    if (!this.page) {
+      throw new Error("SAP 강좌 페이지가 열리지 않았습니다.");
+    }
+
+    try {
+      await this.page.goto(this.options.url, { waitUntil: "domcontentloaded" });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (!message.includes("interrupted by another navigation")) throw error;
+    }
   }
 
   // 개설과목 조회 화면은 SAP 로그온을 요구한다. 이미 세션이 있으면 로그온 폼이 나오지 않는다.
@@ -116,11 +138,8 @@ export class PlaywrightCourseCatalogPage implements CourseCatalogPage {
     }
 
     try {
-      await this.selectComboOption(this.options.selectors.academicYearButton, String(academicYear));
-      await this.selectComboOption(
-        this.options.selectors.semesterButton,
-        sapSemesterKeys[semester],
-      );
+      await this.selectComboOption(this.options.selectors.academicYearIndex, String(academicYear));
+      await this.selectComboOption(this.options.selectors.semesterIndex, sapSemesterKeys[semester]);
       this.selectedPeriod = { academicYear, semester };
     } catch (error) {
       await this.page
@@ -155,7 +174,8 @@ export class PlaywrightCourseCatalogPage implements CourseCatalogPage {
     let lastError: unknown;
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
       try {
-        await this.page.goto(this.options.url, { waitUntil: "domcontentloaded" });
+        await this.openUrl();
+        await this.logIn();
         await this.selectAcademicPeriod(
           this.selectedPeriod.academicYear,
           this.selectedPeriod.semester,
@@ -169,28 +189,60 @@ export class PlaywrightCourseCatalogPage implements CourseCatalogPage {
     throw new Error(`SAP 페이지 재설정 실패: ${maxAttempts}회 시도`, { cause: lastError });
   }
 
-  private async selectComboOption(buttonSelector: string, itemKey: string): Promise<void> {
+  private async selectComboOption(comboIndex: number, itemKey: string): Promise<void> {
     if (!this.page) {
       throw new Error("SAP 강좌 페이지가 열리지 않았습니다.");
     }
 
-    await this.page.locator(buttonSelector).click();
+    const inputId = await this.findGlobalCombo(comboIndex);
+
+    await this.page.locator(`#${inputId}-btn`).click();
     await this.page
       .locator(`${this.options.selectors.optionItems}[data-itemkey="${itemKey}"]`)
       .click();
-    const inputSelector = buttonSelector.replace(/-btn$/, "");
     await this.page.waitForFunction(
       ({ selector, itemKey: expectedKey }) =>
         document.querySelector(selector)?.getAttribute("lsdata")?.includes(`4:'${expectedKey}'`) ??
         false,
-      { selector: inputSelector, itemKey },
+      { selector: `#${inputId}`, itemKey },
     );
+  }
+
+  // 전역 조회 조건 콤보를 자리로 찾는다. SAP은 화면마다 콤보 ID를 다시 매기므로
+  // 로그온 화면을 거치면 ID가 달라진다. 여는 버튼은 항상 입력 ID + "-btn"이다.
+  private async findGlobalCombo(comboIndex: number): Promise<string> {
+    if (!this.page) {
+      throw new Error("SAP 강좌 페이지가 열리지 않았습니다.");
+    }
+
+    // 로그온 직후에는 조회 조건이 아직 그려지지 않을 수 있어 나타날 때까지 기다린다.
+    for (let attempt = 0; attempt < comboLookupAttempts; attempt += 1) {
+      const inputId = await this.page.evaluate((index) => {
+        const inputs = [...document.querySelectorAll('input[ct="CB"]')].filter(
+          (element) => (element as HTMLElement).offsetParent !== null,
+        );
+        const container = inputs[0]?.closest('[ct="ML"]');
+        const globalCombos = container
+          ? inputs.filter((element) => element.closest('[ct="ML"]') === container)
+          : inputs;
+        return globalCombos[index]?.id ?? null;
+      }, comboIndex);
+
+      if (inputId) return inputId;
+
+      await this.page.waitForTimeout(comboLookupIntervalMs);
+    }
+
+    throw new Error(`SAP 전역 조회 조건 ${comboIndex}번 콤보를 찾을 수 없습니다.`);
   }
 }
 
+const comboLookupAttempts = 30;
+const comboLookupIntervalMs = 1_000;
+
 export const shinhanSapPageSelectors: SapPageSelectors = {
-  academicYearButton: "#WD25-btn",
-  semesterButton: "#WD76-btn",
+  academicYearIndex: 1,
+  semesterIndex: 2,
   optionItems: '[ct="LIB_I"]',
   userInput: "#sap-user",
   passwordInput: "#sap-password",
