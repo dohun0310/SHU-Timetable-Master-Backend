@@ -9,12 +9,16 @@ describe("loadAppConfig", () => {
         TARGET_ACADEMIC_YEAR: "2026",
         TARGET_SEMESTER: "SECOND",
         SAP_COURSE_URL: "https://example.com/course-catalog",
+        SAP_USER: "collector",
+        SAP_PASSWORD: "secret",
         PORT: "4000",
       }),
     ).toEqual({
       targetAcademicYear: 2026,
       targetSemester: "SECOND",
       sapCourseUrl: "https://example.com/course-catalog",
+      sapUser: "collector",
+      sapPassword: "secret",
       port: 4000,
       playwrightHeadless: true,
       catalogPath: "generated/catalog.json",
@@ -29,6 +33,8 @@ describe("loadAppConfig", () => {
         TARGET_ACADEMIC_YEAR: "year-2026",
         TARGET_SEMESTER: "SECOND",
         SAP_COURSE_URL: "https://example.com/course-catalog",
+        SAP_USER: "collector",
+        SAP_PASSWORD: "secret",
       }),
     ).toThrow("TARGET_ACADEMIC_YEAR는 2000 이상의 정수여야 합니다.");
   });
@@ -39,6 +45,8 @@ describe("loadAppConfig", () => {
         TARGET_ACADEMIC_YEAR: "2026",
         TARGET_SEMESTER: "SECOND",
         SAP_COURSE_URL: "https://example.com/course-catalog",
+        SAP_USER: "collector",
+        SAP_PASSWORD: "secret",
         SAP_CONCURRENCY: "2",
       }).sapConcurrency,
     ).toBe(2);
@@ -50,8 +58,31 @@ describe("loadAppConfig", () => {
         TARGET_ACADEMIC_YEAR: "2026",
         TARGET_SEMESTER: "SECOND",
         SAP_COURSE_URL: "https://example.com/course-catalog",
+        SAP_USER: "collector",
+        SAP_PASSWORD: "secret",
         SAP_CONCURRENCY: "50",
       }),
     ).toThrow("SAP_CONCURRENCY는 1부터 8 사이의 정수여야 합니다.");
+  });
+
+  it("refuses to start collecting without SAP credentials", () => {
+    expect(() =>
+      loadAppConfig({
+        TARGET_ACADEMIC_YEAR: "2026",
+        TARGET_SEMESTER: "SECOND",
+        SAP_COURSE_URL: "https://example.com/course-catalog",
+        SAP_PASSWORD: "secret",
+      }),
+    ).toThrow("SAP_USER는 비어 있을 수 없습니다.");
+
+    expect(() =>
+      loadAppConfig({
+        TARGET_ACADEMIC_YEAR: "2026",
+        TARGET_SEMESTER: "SECOND",
+        SAP_COURSE_URL: "https://example.com/course-catalog",
+        SAP_USER: "collector",
+        SAP_PASSWORD: "   ",
+      }),
+    ).toThrow("SAP_PASSWORD는 비어 있을 수 없습니다.");
   });
 });

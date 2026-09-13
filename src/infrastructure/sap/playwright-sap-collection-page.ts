@@ -150,6 +150,9 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
       "계획",
       "학점/이론/실습",
       "과목명",
+      "수업평가",
+      "학위유형",
+      "언어",
     ];
     const table = this.page.locator('[ct="ST"]:visible').first();
     const rows = await table.evaluate((element, expectedHeaders) => {

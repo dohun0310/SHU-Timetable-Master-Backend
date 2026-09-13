@@ -71,8 +71,79 @@ describe("PlaywrightSapCollectionPage", () => {
         "",
         "",
         "",
+        "",
+        "",
+        "",
       ],
     ]);
+
+    await page.close();
+  });
+
+  // 인증 화면은 익명 화면에 없던 과목번호·강의시간과 함께 수업평가·학위유형·언어 열을 내려준다.
+  // 행 유효성은 과목번호로 판정하므로, 이 배치에서 과목번호가 비면 모든 행이 걸러진다.
+  it("reads every row of the authenticated course table", async () => {
+    const page = await browser.newPage();
+    const headers = [
+      "주관학과",
+      "전공",
+      "과목명",
+      "과목번호",
+      "분반",
+      "계획",
+      "수업계획서 영상",
+      "수업평가",
+      "이수구분",
+      "강의시간",
+      "담당교수",
+      "학위유형",
+      "학점/이론/실습",
+      "정원",
+      "PF/PN여부",
+      "강의유형",
+      "언어",
+      "수강자격",
+      "수강유의사항",
+    ];
+    const values = [
+      "리나시타교양대학",
+      "리나시타교양대학",
+      "공동체돌봄과시민참여",
+      "GE81102",
+      "001",
+      "",
+      "실행",
+      "",
+      "핵심교양",
+      "월 1교시 09:00-09:50",
+      "김미진",
+      "학사과정",
+      "3/3/0",
+      "44",
+      "",
+      "",
+      "",
+      "전체캠퍼스(의정부)",
+      "",
+    ];
+    await page.setContent(`
+      <table ct="ST"><thead><tr>
+        ${headers.map((header) => `<th><span ct="CP">${header}</span></th>`).join("")}
+      </tr></thead><tbody id="table-contentTBody">
+        <tr rr="1">${values.map((value, index) => `<td cc="${index}">${value}</td>`).join("")}</tr>
+      </tbody></table>
+    `);
+    const collectionPage = new PlaywrightSapCollectionPage(page);
+
+    const rows = await collectionPage.readRows();
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.[1]).toBe("GE81102");
+    expect(rows[0]?.[3]).toBe("월 1교시 09:00-09:50");
+    // 인증 화면에서 늘어난 열도 함께 읽어 둔다.
+    expect(rows[0]).toHaveLength(19);
+    expect(rows[0]?.[10]).toBe("전체캠퍼스(의정부)");
+    expect(rows[0]?.[17]).toBe("학사과정");
 
     await page.close();
   });

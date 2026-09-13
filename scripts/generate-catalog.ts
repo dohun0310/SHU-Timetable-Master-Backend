@@ -27,6 +27,7 @@ async function main(): Promise<void> {
         url: config.sapCourseUrl,
         headless: config.playwrightHeadless,
         selectors: shinhanSapPageSelectors,
+        credentials: { user: config.sapUser, password: config.sapPassword },
       }),
   );
   const startedAt = Date.now();
