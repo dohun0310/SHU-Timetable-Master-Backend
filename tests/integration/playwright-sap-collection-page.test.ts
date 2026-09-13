@@ -80,6 +80,58 @@ describe("PlaywrightSapCollectionPage", () => {
     await page.close();
   });
 
+  it("retries a filter option until SAP keeps the requested value", async () => {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <input ct="CB" id="global-1">
+      <input ct="CB" id="global-2">
+      <input ct="CB" id="global-3">
+      <input ct="CB" id="filter"><button id="filter-btn">open</button>
+      <div ct="LIB_I" data-itemkey="a">Category A</div>
+      <div ct="LIB_I" data-itemkey="b">Category B</div>
+      <script>
+        let value = 'a';
+        let attempts = 0;
+        window.application = {
+          pendingRequest: false,
+          lightspeed: {
+            oGetControlById: () => ({
+              getValue: () => value,
+              setText: () => {},
+              setValue: (next) => {
+                attempts += 1;
+                if (attempts > 1) value = next;
+              },
+            }),
+          },
+        };
+        window.filterAttempts = () => attempts;
+      </script>
+    `);
+    const collectionPage = new PlaywrightSapCollectionPage(page);
+
+    await collectionPage.listFilterOptions(0);
+    await collectionPage.selectFilterOption(0, "b");
+
+    await expect(
+      page.evaluate(() =>
+        (
+          window as unknown as {
+            application: {
+              lightspeed: { oGetControlById(): { getValue(): string } };
+            };
+          }
+        ).application.lightspeed
+          .oGetControlById()
+          .getValue(),
+      ),
+    ).resolves.toBe("b");
+    await expect(
+      page.evaluate(() => (window as unknown as { filterAttempts(): number }).filterAttempts()),
+    ).resolves.toBe(2);
+    await page.close();
+  }, 10_000);
+
   // 인증 화면은 익명 화면에 없던 과목번호·강의시간과 함께 수업평가·학위유형·언어 열을 내려준다.
   // 행 유효성은 과목번호로 판정하므로, 이 배치에서 과목번호가 비면 모든 행이 걸러진다.
   it("reads every row of the authenticated course table", async () => {
