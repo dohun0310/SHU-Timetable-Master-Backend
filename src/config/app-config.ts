@@ -7,6 +7,8 @@ export interface AppConfig {
   targetAcademicYear: number;
   targetSemester: Semester;
   sapCourseUrl: string;
+  sapUser: string;
+  sapPassword: string;
   port: number;
   playwrightHeadless: boolean;
   catalogPath: string;
@@ -46,6 +48,15 @@ function parseSapConcurrency(value: string | undefined): number {
   return concurrency;
 }
 
+// 개설과목 조회 화면은 SAP 로그온을 요구한다. 값이 비어 있으면 수집이 로그인 화면에서 멈춘다.
+function parseRequiredSecret(value: string | undefined, name: string): string {
+  const secret = value?.trim();
+  if (!secret) {
+    throw new Error(`${name}는 비어 있을 수 없습니다.`);
+  }
+  return secret;
+}
+
 export interface ServerConfig {
   port: number;
   catalogPath: string;
@@ -67,6 +78,8 @@ export function loadAppConfig(environment: NodeJS.ProcessEnv = process.env): App
     targetAcademicYear: parseAcademicYear(environment.TARGET_ACADEMIC_YEAR),
     targetSemester: parseSemester(environment.TARGET_SEMESTER ?? ""),
     sapCourseUrl,
+    sapUser: parseRequiredSecret(environment.SAP_USER, "SAP_USER"),
+    sapPassword: parseRequiredSecret(environment.SAP_PASSWORD, "SAP_PASSWORD"),
     port: parsePort(environment.PORT),
     playwrightHeadless: environment.PLAYWRIGHT_HEADLESS !== "false",
     sapConcurrency: parseSapConcurrency(environment.SAP_CONCURRENCY),
