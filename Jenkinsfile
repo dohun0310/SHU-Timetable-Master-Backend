@@ -40,9 +40,8 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    corepack enable
-                    yarn install --immutable
-                    yarn playwright:install
+                    corepack yarn install --immutable
+                    corepack yarn playwright:install
                 '''
             }
         }
