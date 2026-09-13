@@ -64,10 +64,10 @@ pipeline {
             steps {
                 sh '''
                     set -eu
-                    yarn lint
-                    yarn format:check
-                    yarn typecheck
-                    yarn test
+                    corepack yarn lint
+                    corepack yarn format:check
+                    corepack yarn typecheck
+                    corepack yarn test
                 '''
             }
         }
