@@ -132,6 +132,34 @@ describe("PlaywrightSapCollectionPage", () => {
     await page.close();
   }, 10_000);
 
+  it("rejects a search that leaves stale rows without starting a SAP request", async () => {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <button ct="B">조회</button>
+      <table ct="ST"><tbody id="table-contentTBody">
+        <tr rr="1"><td cc="0">이전 조회 결과</td></tr>
+      </tbody></table>
+      <script>window.application = { pendingRequest: false };</script>
+    `);
+    const collectionPage = new PlaywrightSapCollectionPage(page);
+
+    await expect(collectionPage.search(50)).rejects.toThrow("이전 조회 결과");
+    await page.close();
+  });
+
+  it("treats a search without a SAP request as empty only when no rows remain", async () => {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <button ct="B">조회</button>
+      <table ct="ST"><tbody id="table-contentTBody"></tbody></table>
+      <script>window.application = { pendingRequest: false };</script>
+    `);
+    const collectionPage = new PlaywrightSapCollectionPage(page);
+
+    await expect(collectionPage.search(50)).resolves.toBe(false);
+    await page.close();
+  });
+
   // 인증 화면은 익명 화면에 없던 과목번호·강의시간과 함께 수업평가·학위유형·언어 열을 내려준다.
   // 행 유효성은 과목번호로 판정하므로, 이 배치에서 과목번호가 비면 모든 행이 걸러진다.
   it("reads every row of the authenticated course table", async () => {

@@ -122,24 +122,36 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
   }
 
   async search(timeoutMs = 2_000): Promise<boolean> {
+    await this.waitForSapIdle();
     const button = this.page
       .locator('[ct="B"]:visible')
       .filter({ hasText: /^(조회|Search)$/ })
       .first();
 
-    try {
-      await Promise.all([
-        this.waitForSapRequest(timeoutMs),
-        this.waitForSapResponse(30_000),
-        button.evaluate((element) => (element as HTMLElement).click()),
-      ]);
+    const request = this.waitForSapRequest(timeoutMs).catch(() => null);
+    await button.evaluate((element) => (element as HTMLElement).click());
+    const startedRequest = await request;
+
+    if (!startedRequest) {
       await this.waitForSapIdle();
-      return true;
-    } catch {
-      await this.waitForSapIdle();
-      // SAP는 조회 대상이 없을 때 Press 왕복 없이 현재 테이블을 빈 상태로 유지한다.
+      if (await this.hasVisibleRows()) {
+        throw new Error(
+          "SAP 조회 요청이 시작되지 않아 이전 조회 결과를 새 결과로 사용할 수 없습니다.",
+        );
+      }
       return false;
     }
+
+    const response = await Promise.race([
+      startedRequest.response(),
+      this.page.waitForTimeout(30_000).then(() => null),
+    ]);
+    if (!response) throw new Error("SAP 조회 응답을 제한 시간 안에 받지 못했습니다.");
+    if (!response.ok())
+      throw new Error(`SAP 조회 요청이 HTTP ${response.status()}로 실패했습니다.`);
+
+    await this.waitForSapIdle();
+    return true;
   }
 
   async readRows(): Promise<string[][]> {
@@ -205,6 +217,13 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
     }, canonicalHeaders);
 
     return rows.filter((cells) => (cells[1] ?? "").length > 0);
+  }
+
+  private hasVisibleRows(): Promise<boolean> {
+    return this.page
+      .locator('[ct="ST"]:visible tbody[id$="-contentTBody"] tr[rr]')
+      .count()
+      .then((count) => count > 0);
   }
 
   private async findFilterInputId(filterIndex: number): Promise<string | null> {
