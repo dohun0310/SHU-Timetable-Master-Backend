@@ -1,5 +1,6 @@
 .git
 .github
+Jenkinsfile
 .yarn/cache
 .yarn/install-state.gz
 node_modules
