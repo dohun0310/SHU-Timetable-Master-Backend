@@ -53,7 +53,7 @@ pipeline {
                         set -eu
                         trap 'rm -f .env' EXIT HUP INT TERM
                         cp "${APP_ENV_FILE}" .env
-                        yarn catalog:generate
+                        corepack yarn catalog:generate
                         test -s generated/catalog.json
                     '''
                 }
