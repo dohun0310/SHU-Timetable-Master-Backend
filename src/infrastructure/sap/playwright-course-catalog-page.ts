@@ -78,7 +78,9 @@ export class PlaywrightCourseCatalogPage implements CourseCatalogPage {
       );
       this.selectedPeriod = { academicYear, semester };
     } catch (error) {
-      await this.page.screenshot({ path: this.failureScreenshotPath, fullPage: true });
+      await this.page
+        .screenshot({ path: this.failureScreenshotPath, fullPage: true })
+        .catch(() => undefined);
       throw new Error(`SAP 조회 기간 선택 실패: ${academicYear} ${sapSemesterLabels[semester]}`, {
         cause: error,
       });
@@ -96,15 +98,30 @@ export class PlaywrightCourseCatalogPage implements CourseCatalogPage {
       throw new Error("SAP 강좌 페이지가 열리지 않았습니다.");
     }
     return new PlaywrightSapCollectionPage(this.page as unknown as Page, async () => {
-      if (!this.page || !this.selectedPeriod) {
-        throw new Error("SAP 조회 기간이 선택되지 않았습니다.");
-      }
-      await this.page.goto(this.options.url, { waitUntil: "domcontentloaded" });
-      await this.selectAcademicPeriod(
-        this.selectedPeriod.academicYear,
-        this.selectedPeriod.semester,
-      );
+      await this.resetSelectedPeriod();
     });
+  }
+
+  private async resetSelectedPeriod(maxAttempts = 3): Promise<void> {
+    if (!this.page || !this.selectedPeriod) {
+      throw new Error("SAP 조회 기간이 선택되지 않았습니다.");
+    }
+
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+      try {
+        await this.page.goto(this.options.url, { waitUntil: "domcontentloaded" });
+        await this.selectAcademicPeriod(
+          this.selectedPeriod.academicYear,
+          this.selectedPeriod.semester,
+        );
+        return;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+
+    throw new Error(`SAP 페이지 재설정 실패: ${maxAttempts}회 시도`, { cause: lastError });
   }
 
   private async selectComboOption(buttonSelector: string, itemKey: string): Promise<void> {

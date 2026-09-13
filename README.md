@@ -74,13 +74,137 @@ yarn start
 
 ### API
 
-| 메서드 | 경로            | 설명                           |
-| ------ | --------------- | ------------------------------ |
-| `GET`  | `/api/catalog`  | 전체 카탈로그 JSON             |
-| `GET`  | `/catalog.json` | 동일 카탈로그의 정적 호환 경로 |
-| `GET`  | `/api/health`   | 서버 및 로드된 강좌 수 확인    |
+| 메서드 | 경로                       | 설명                        |
+| ------ | -------------------------- | --------------------------- |
+| `GET`  | `/api/courses`             | 강좌 검색·필터·페이지네이션 |
+| `GET`  | `/api/courses/:id`         | 강좌 단건 조회              |
+| `GET`  | `/api/meta`                | 학기 정보와 필터 목록       |
+| `POST` | `/api/timetables/generate` | 시간표 조합 자동 생성       |
+| `GET`  | `/api/health`              | 서버 및 로드된 강좌 수 확인 |
 
-카탈로그 응답은 strong ETag와 `Cache-Control`을 제공하며 조건부 요청 시 `304 Not Modified`를 반환합니다.
+조회 응답은 strong ETag와 `Cache-Control`을 제공하며 조건부 요청 시 `304 Not Modified`를 반환합니다.
+
+#### `GET /api/courses`
+
+| Query        | 예시               | 설명                                                  |
+| ------------ | ------------------ | ----------------------------------------------------- |
+| `q`          | `자료구조`         | 강좌명·과목코드·교수 부분 일치 (공백·대소문자 무시)   |
+| `category`   | `MAJOR,TEACHING`   | 강좌 분류                                             |
+| `department` | `소프트웨어학과`   | 학과                                                  |
+| `major`      | `영상콘텐츠 제작`  | 전공. 강좌가 여러 전공에 걸치면 그중 하나만 맞아도 됨 |
+| `professor`  | `홍길동`           | 교수. 공동 강의면 그중 한 명만 맞아도 됨              |
+| `day`        | `MONDAY,WEDNESDAY` | 해당 요일에 수업이 있는 강좌                          |
+| `startAfter` | `10:00`            | 모든 수업이 이 시각 이후에 시작                       |
+| `endBefore`  | `18:00`            | 모든 수업이 이 시각 이전에 종료                       |
+| `minCredits` | `3`                | 최소 학점                                             |
+| `maxCredits` | `3`                | 최대 학점                                             |
+| `page`       | `2`                | 페이지 번호, 1부터 시작 (기본 `1`)                    |
+| `size`       | `50`               | 페이지 크기, 최대 `100` (기본 `20`)                   |
+| `sort`       | `credits`          | `name` 또는 `credits` (기본 `name`)                   |
+
+같은 필터에 값을 여러 개 주면 OR로, 서로 다른 필터는 AND로 묶입니다. 값이 여러 개일 때는 `?day=MONDAY,TUESDAY`와 `?day=MONDAY&day=TUESDAY`를 모두 지원합니다.
+
+강의시간이 없는 강좌는 `day` 필터에서는 제외되지만, `startAfter`·`endBefore`에서는 어떤 시간대와도 부딪히지 않으므로 남습니다.
+
+한 강좌를 여러 교수가 가르치고 여러 전공에 걸칠 수 있어 `professors`와 `majors`는 목록입니다. 주관학과(`department`)는 언제나 하나입니다. 필터는 목록 안의 값 하나만 맞아도 걸리므로, 공동 강의 교수 한 명으로도 강좌를 찾을 수 있습니다.
+
+```bash
+curl "http://localhost:3000/api/courses?professor=박흥경"
+```
+
+```json
+{
+  "page": 1,
+  "size": 20,
+  "total": 1,
+  "totalPages": 1,
+  "courses": [
+    {
+      "id": "…",
+      "name": "기본간호학실습(2)",
+      "department": { "id": "간호학과", "name": "간호학과" },
+      "majors": [{ "id": "간호학과", "name": "간호학과" }],
+      "professors": ["김종규", "박흥경", "여우석"],
+      "schedule": { "meetings": [] }
+    }
+  ]
+}
+```
+
+잘못된 query는 `400`과 함께 어떤 값이 틀렸는지 알려줍니다.
+
+```json
+{
+  "error": {
+    "message": "잘못된 검색 조건입니다.",
+    "details": [{ "field": "size", "message": "Too big: expected number to be <=100" }]
+  }
+}
+```
+
+#### `POST /api/timetables/generate`
+
+듣고 싶은 과목을 **바구니(basket)** 단위로 담아 보내면, 각 바구니에서 강좌를 하나씩 골라 시간이 겹치지 않으면서 제약을 만족하는 시간표 조합을 만들어 돌려줍니다.
+
+바구니 하나가 "듣고 싶은 과목 하나"입니다. 같은 과목의 여러 분반을 한 바구니에 담으면 그중 하나만 시간표에 들어갑니다. `required`가 `false`인 바구니는 비워질 수 있습니다.
+
+```bash
+curl -X POST http://localhost:3000/api/timetables/generate \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "baskets": [
+      { "label": "자료구조", "courseIds": ["…-001", "…-002"] },
+      { "label": "교양", "required": false, "courseIds": ["…", "…"] }
+    ],
+    "constraints": {
+      "freeDays": ["FRIDAY"],
+      "avoidBefore": "10:00",
+      "avoidAfter": "18:00",
+      "credits": { "min": 15, "max": 18 }
+    },
+    "limit": 20
+  }'
+```
+
+| 필드                      | 기본값 | 설명                                       |
+| ------------------------- | ------ | ------------------------------------------ |
+| `baskets`                 | 필수   | 최대 20개. 바구니마다 강좌 후보 최대 100개 |
+| `baskets[].required`      | `true` | `false`면 이 바구니는 비워질 수 있음       |
+| `constraints.freeDays`    | 없음   | 이 요일에는 수업이 하나도 없어야 함        |
+| `constraints.avoidBefore` | 없음   | 모든 수업이 이 시각 이후에 시작            |
+| `constraints.avoidAfter`  | 없음   | 모든 수업이 이 시각 이전에 종료            |
+| `constraints.credits`     | 없음   | 총 학점의 `min`·`max`                      |
+| `limit`                   | `20`   | 돌려줄 시간표 최대 개수, 최대 `100`        |
+
+```json
+{
+  "count": 7,
+  "truncated": false,
+  "timetables": [
+    {
+      "courses": [{ "id": "…", "name": "자료구조" }],
+      "totalCredits": 17,
+      "days": ["MONDAY", "WEDNESDAY"],
+      "freeDays": ["TUESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"]
+    }
+  ]
+}
+```
+
+후보가 많아 조합이 폭발하면 탐색을 중간에 끊고 `truncated`를 `true`로 알립니다. 이때 `count`개는 유효한 시간표이지만 더 있을 수 있습니다.
+
+충돌 판정은 **교시**를 기준으로 합니다. 강의시간이 없는 강좌(사이버 강의 등)는 어떤 강좌와도 겹치지 않으므로 항상 조합에 들어갑니다.
+
+강의시간을 온전히 알 수 없는 강좌(`PARTIALLY_PARSED`·`UNPARSED`)는 충돌을 판정할 수 없으므로 `400`으로 거부합니다. 잘못된 시간표를 조용히 만들어 주지 않기 위함입니다.
+
+```json
+{
+  "error": {
+    "message": "강의시간을 온전히 알 수 없어 시간표를 만들 수 없는 강좌가 있습니다: 드론프로젝트실습-캡스톤디자인",
+    "details": [{ "id": "…", "name": "드론프로젝트실습-캡스톤디자인" }]
+  }
+}
+```
 
 ## 품질 검사
 
@@ -123,7 +247,7 @@ docker run --rm \
 
 ```bash
 curl http://localhost:3000/api/health
-curl http://localhost:3000/api/catalog
+curl "http://localhost:3000/api/courses?size=1"
 ```
 
 이미지는 다단계 빌드를 사용하고 비 root `node` 사용자로 실행됩니다. Docker healthcheck는 `/api/health`를 확인합니다.

@@ -19,6 +19,7 @@ describe("loadAppConfig", () => {
       playwrightHeadless: true,
       catalogPath: "generated/catalog.json",
       corsOrigin: "*",
+      sapConcurrency: 4,
     });
   });
 
@@ -30,5 +31,27 @@ describe("loadAppConfig", () => {
         SAP_COURSE_URL: "https://example.com/course-catalog",
       }),
     ).toThrow("TARGET_ACADEMIC_YEAR는 2000 이상의 정수여야 합니다.");
+  });
+
+  it("lets the collector run on several pages at once", () => {
+    expect(
+      loadAppConfig({
+        TARGET_ACADEMIC_YEAR: "2026",
+        TARGET_SEMESTER: "SECOND",
+        SAP_COURSE_URL: "https://example.com/course-catalog",
+        SAP_CONCURRENCY: "2",
+      }).sapConcurrency,
+    ).toBe(2);
+  });
+
+  it("refuses a concurrency that would hammer the university server", () => {
+    expect(() =>
+      loadAppConfig({
+        TARGET_ACADEMIC_YEAR: "2026",
+        TARGET_SEMESTER: "SECOND",
+        SAP_COURSE_URL: "https://example.com/course-catalog",
+        SAP_CONCURRENCY: "50",
+      }),
+    ).toThrow("SAP_CONCURRENCY는 1부터 8 사이의 정수여야 합니다.");
   });
 });

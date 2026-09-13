@@ -167,12 +167,22 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
             .sort(
               (left, right) => Number(left.getAttribute("cc")) - Number(right.getAttribute("cc")),
             )
-            .map((cell) =>
-              (cell.textContent ?? "")
+            .map((cell) => {
+              // SAP\uc740 \ud55c \uce78\uc5d0 \uac12\uc774 \uc5ec\ub7ff\uc774\uba74 <br>\ub85c \ub098\ub208\ub2e4. \uad50\uc218 \ub450 \uba85, \uc804\uacf5 \ub450 \uac1c, \uad50\uc2dc \uc5ec\ub7ec \uac1c\uac00 \uadf8\ub807\ub2e4.
+              // textContent\ub294 <br>\uc744 \ubc84\ub824 \uac12\uc744 \uc774\uc5b4\ubd99\uc778\ub2e4. "\uac04\ud638\ud559\uacfc"+"\uac04\ud638\ud559\uacfc" \u2192 "\uac04\ud638\ud559\uacfc\uac04\ud638\ud559\uacfc".
+              // \uc904 \uad6c\ubd84\uc744 \uc0b4\ub824 \uc77d\uace0, \uac12\uc744 \ub098\ub204\ub294 \uc77c\uc740 \uc77d\ub294 \ucabd\uc5d0 \ub9e1\uae34\ub2e4.
+              const clone = cell.cloneNode(true) as HTMLElement;
+              for (const lineBreak of clone.querySelectorAll("br")) {
+                lineBreak.replaceWith("\n");
+              }
+
+              return (clone.textContent ?? "")
                 .replace(/\u00a0/g, " ")
-                .replace(/\s+/g, " ")
-                .trim(),
-            );
+                .split("\n")
+                .map((line) => line.replace(/\s+/g, " ").trim())
+                .filter((line) => line.length > 0)
+                .join("\n");
+            });
           return expectedHeaders.map((header) => {
             const index = sourceIndex.get(header);
             return index === undefined ? "" : (sourceCells[index] ?? "");

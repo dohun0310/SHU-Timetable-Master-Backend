@@ -51,6 +51,15 @@ function createFilters(values: Array<{ id: string; label: string }>): CatalogFil
   return [...counts.values()].sort((left, right) => left.label.localeCompare(right.label, "ko"));
 }
 
+// 강의실이 둘이면 같은 요일에 meeting이 둘 생긴다. 요일 필터는 강좌 수를 세야 하므로 요일별로 한 번만 센다.
+function distinctDays(course: Course): Array<{ id: string; label: string }> {
+  const days = new Map<string, { id: string; label: string }>();
+  for (const meeting of course.schedule.meetings) {
+    days.set(meeting.day, { id: meeting.day, label: meeting.dayLabel });
+  }
+  return [...days.values()];
+}
+
 export class GenerateCourseCatalog {
   private readonly now: () => Date;
 
@@ -62,7 +71,10 @@ export class GenerateCourseCatalog {
     const generatedAt = this.now().toISOString();
     const courses = input.rawCourses.map((raw): Course => {
       const department = organization(raw.departmentName);
-      const major = organization(raw.majorName);
+      const majors = raw.majorNames.flatMap((name) => {
+        const major = organization(name);
+        return major ? [major] : [];
+      });
       return {
         id: this.dependencies.idGenerator.generate({
           academicYear: input.academicYear,
@@ -76,11 +88,11 @@ export class GenerateCourseCatalog {
         category: raw.category,
         categoryLabel: categoryLabels[raw.category],
         department,
-        major,
+        majors,
         courseCode: raw.courseCode,
         classNumber: raw.classNumber,
         name: raw.courseName,
-        professor: raw.professor,
+        professors: raw.professors,
         credits: raw.credits,
         hours: raw.hours,
         schedule: this.dependencies.scheduleParser.parse(raw.classTime),
@@ -105,24 +117,19 @@ export class GenerateCourseCatalog {
             course.department ? [{ id: course.department.id, label: course.department.name }] : [],
           ),
         ),
+        // 전공과 교수는 강좌마다 여럿일 수 있다. 필터는 개별 값으로 세어야
+        // "김종규"로 검색했을 때 그가 함께 가르치는 강좌까지 잡힌다.
         majors: createFilters(
           courses.flatMap((course) =>
-            course.major ? [{ id: course.major.id, label: course.major.name }] : [],
+            course.majors.map((major) => ({ id: major.id, label: major.name })),
           ),
         ),
         professors: createFilters(
           courses.flatMap((course) =>
-            course.professor ? [{ id: course.professor, label: course.professor }] : [],
+            course.professors.map((professor) => ({ id: professor, label: professor })),
           ),
         ),
-        days: createFilters(
-          courses.flatMap((course) =>
-            course.schedule.meetings.map((meeting) => ({
-              id: meeting.day,
-              label: meeting.dayLabel,
-            })),
-          ),
-        ),
+        days: createFilters(courses.flatMap(distinctDays)),
       },
       courses,
     });
