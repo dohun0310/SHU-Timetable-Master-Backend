@@ -146,7 +146,11 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
       startedRequest.response(),
       this.page.waitForTimeout(30_000).then(() => null),
     ]);
-    if (!response) throw new Error("SAP 조회 응답을 제한 시간 안에 받지 못했습니다.");
+    if (!response) {
+      await this.waitForSapIdle();
+      if (await this.hasNoDataMessage()) return false;
+      throw new Error("SAP 조회 응답을 제한 시간 안에 받지 못해 결과를 확정할 수 없습니다.");
+    }
     if (!response.ok())
       throw new Error(`SAP 조회 요청이 HTTP ${response.status()}로 실패했습니다.`);
 
@@ -217,6 +221,14 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
     }, canonicalHeaders);
 
     return rows.filter((cells) => (cells[1] ?? "").length > 0);
+  }
+
+  private hasNoDataMessage(): Promise<boolean> {
+    return this.page
+      .getByText("해당 테이블에 데이터가 없습니다.", { exact: true })
+      .first()
+      .isVisible()
+      .catch(() => false);
   }
 
   private hasVisibleRows(): Promise<boolean> {

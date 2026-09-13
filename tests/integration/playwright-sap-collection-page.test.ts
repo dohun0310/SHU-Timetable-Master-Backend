@@ -160,6 +160,39 @@ describe("PlaywrightSapCollectionPage", () => {
     await page.close();
   });
 
+  it("uses SAP's no-data message even when old table rows remain", async () => {
+    const page = await browser.newPage();
+    await page.route("**/sap/bc/webdynpro/**", async (route) => route.abort());
+    await page.setContent(`
+      <button ct="B" onclick="fetch('https://sap.test/sap/bc/webdynpro/search', { method: 'POST' }).catch(() => {})">조회</button>
+      <div>해당 테이블에 데이터가 없습니다.</div>
+      <table ct="ST"><tbody id="table-contentTBody">
+        <tr rr="1"><td cc="0">이전 조회 결과</td></tr>
+      </tbody></table>
+      <script>window.application = { pendingRequest: false };</script>
+    `);
+    const collectionPage = new PlaywrightSapCollectionPage(page);
+
+    await expect(collectionPage.search(1_000)).resolves.toBe(false);
+    await page.close();
+  });
+
+  it("rejects an unanswered SAP request without a no-data message", async () => {
+    const page = await browser.newPage();
+    await page.route("**/sap/bc/webdynpro/**", async (route) => route.abort());
+    await page.setContent(`
+      <button ct="B" onclick="fetch('https://sap.test/sap/bc/webdynpro/search', { method: 'POST' }).catch(() => {})">조회</button>
+      <table ct="ST"><tbody id="table-contentTBody">
+        <tr rr="1"><td cc="0">이전 조회 결과</td></tr>
+      </tbody></table>
+      <script>window.application = { pendingRequest: false };</script>
+    `);
+    const collectionPage = new PlaywrightSapCollectionPage(page);
+
+    await expect(collectionPage.search(1_000)).rejects.toThrow("결과를 확정할 수 없습니다");
+    await page.close();
+  });
+
   // 인증 화면은 익명 화면에 없던 과목번호·강의시간과 함께 수업평가·학위유형·언어 열을 내려준다.
   // 행 유효성은 과목번호로 판정하므로, 이 배치에서 과목번호가 비면 모든 행이 걸러진다.
   it("reads every row of the authenticated course table", async () => {
