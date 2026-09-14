@@ -60,6 +60,10 @@ run_container() {
 
   set -- docker run --pull never -d --name "$name" --restart "$restart_policy"
 
+  if [ -n "$DOCKER_NETWORK" ]; then
+    set -- "$@" --network "$DOCKER_NETWORK"
+  fi
+
   if [ -n "${APP_ENV_FILE:-}" ]; then
     set -- "$@" --env-file "$APP_ENV_FILE"
   fi
