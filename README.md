@@ -22,15 +22,37 @@ cp .env.example .env
 
 ## 환경 변수
 
-| 변수                   | 기본값                   | 설명                                  |
-| ---------------------- | ------------------------ | ------------------------------------- |
-| `TARGET_ACADEMIC_YEAR` | 없음                     | 수집 대상 학년도(2000 이상의 정수)    |
-| `TARGET_SEMESTER`      | 없음                     | `FIRST`, `SECOND`, `SUMMER`, `WINTER` |
-| `SAP_COURSE_URL`       | 없음                     | 신한대학교 SAP 강좌 조회 URL          |
-| `PLAYWRIGHT_HEADLESS`  | `true`                   | `false`이면 브라우저 UI 표시          |
-| `CATALOG_PATH`         | `generated/catalog.json` | 서버가 시작 시 읽을 카탈로그 경로     |
-| `PORT`                 | `3000`                   | API 서버 포트                         |
-| `CORS_ORIGIN`          | `*`                      | 허용할 프론트엔드 Origin              |
+수집과 서버 실행은 서로 다른 변수를 사용합니다. 서버는 실행 중 SAP에 접근하지 않으므로 SAP 관련 변수가 필요 없습니다.
+
+### 수집 시점
+
+`yarn catalog:generate`와 `yarn build`에서 사용합니다.
+
+| 변수                   | 기본값 | 설명                                   |
+| ---------------------- | ------ | -------------------------------------- |
+| `TARGET_ACADEMIC_YEAR` | 필수   | 수집 대상 학년도(2000 이상의 정수)     |
+| `TARGET_SEMESTER`      | 필수   | `FIRST`, `SECOND`, `SUMMER`, `WINTER`  |
+| `SAP_COURSE_URL`       | 필수   | 신한대학교 SAP 강좌 조회 URL           |
+| `SAP_USER`             | 필수   | SAP 로그온 계정                        |
+| `SAP_PASSWORD`         | 필수   | SAP 로그온 비밀번호                    |
+| `SAP_CONCURRENCY`      | `4`    | 학과 수집에 사용할 동시 페이지 수(1~8) |
+| `PLAYWRIGHT_HEADLESS`  | `true` | `false`이면 브라우저 UI 표시           |
+
+개설과목 조회 화면은 SAP 로그온을 요구합니다. `SAP_USER`와 `SAP_PASSWORD`가 비어 있으면 수집은 로그인 화면에서 멈추며, 설정 검증 단계에서 오류와 함께 중단됩니다.
+
+`SAP_CONCURRENCY`는 학교 서버에 부담을 주지 않도록 1부터 8 사이만 허용합니다.
+
+`.env`에는 SAP 계정 정보가 들어가므로 저장소에 포함하지 않습니다. Git에서 제외되며, 값은 `.env.example`을 복사해 로컬에서 채웁니다.
+
+### 서버 실행 시점
+
+`yarn start`에서 사용합니다.
+
+| 변수           | 기본값                   | 설명                              |
+| -------------- | ------------------------ | --------------------------------- |
+| `PORT`         | `3000`                   | API 서버 포트(1~65535)            |
+| `CATALOG_PATH` | `generated/catalog.json` | 서버가 시작 시 읽을 카탈로그 경로 |
+| `CORS_ORIGIN`  | `*`                      | 허용할 프론트엔드 Origin          |
 
 ## 데이터 생성과 빌드
 
@@ -251,6 +273,15 @@ curl "http://localhost:3000/api/courses?size=1"
 ```
 
 이미지는 다단계 빌드를 사용하고 비 root `node` 사용자로 실행됩니다. Docker healthcheck는 `/api/health`를 확인합니다.
+
+컨테이너에는 다음 기본값이 적용되어 있어 별도로 지정하지 않아도 됩니다.
+
+| 변수           | 컨테이너 기본값               |
+| -------------- | ----------------------------- |
+| `NODE_ENV`     | `production`                  |
+| `PORT`         | `3000`                        |
+| `CATALOG_PATH` | `/app/generated/catalog.json` |
+| `CORS_ORIGIN`  | `*`                           |
 
 ### 외부 카탈로그 마운트
 
