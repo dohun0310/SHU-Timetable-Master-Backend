@@ -71,8 +71,192 @@ describe("PlaywrightSapCollectionPage", () => {
         "",
         "",
         "",
+        "",
+        "",
+        "",
       ],
     ]);
+
+    await page.close();
+  });
+
+  it("retries a filter option until SAP keeps the requested value", async () => {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <input ct="CB" id="global-1">
+      <input ct="CB" id="global-2">
+      <input ct="CB" id="global-3">
+      <input ct="CB" id="filter"><button id="filter-btn">open</button>
+      <div ct="LIB_I" data-itemkey="a">Category A</div>
+      <div ct="LIB_I" data-itemkey="b">Category B</div>
+      <script>
+        let value = 'a';
+        let attempts = 0;
+        window.application = {
+          pendingRequest: false,
+          lightspeed: {
+            oGetControlById: () => ({
+              getValue: () => value,
+              setText: () => {},
+              setValue: (next) => {
+                attempts += 1;
+                if (attempts > 1) value = next;
+              },
+            }),
+          },
+        };
+        window.filterAttempts = () => attempts;
+      </script>
+    `);
+    const collectionPage = new PlaywrightSapCollectionPage(page);
+
+    await collectionPage.listFilterOptions(0);
+    await collectionPage.selectFilterOption(0, "b");
+
+    await expect(
+      page.evaluate(() =>
+        (
+          window as unknown as {
+            application: {
+              lightspeed: { oGetControlById(): { getValue(): string } };
+            };
+          }
+        ).application.lightspeed
+          .oGetControlById()
+          .getValue(),
+      ),
+    ).resolves.toBe("b");
+    await expect(
+      page.evaluate(() => (window as unknown as { filterAttempts(): number }).filterAttempts()),
+    ).resolves.toBe(2);
+    await page.close();
+  }, 10_000);
+
+  it("rejects a search that leaves stale rows without starting a SAP request", async () => {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <button ct="B">조회</button>
+      <table ct="ST"><tbody id="table-contentTBody">
+        <tr rr="1"><td cc="0">이전 조회 결과</td></tr>
+      </tbody></table>
+      <script>window.application = { pendingRequest: false };</script>
+    `);
+    const collectionPage = new PlaywrightSapCollectionPage(page);
+
+    await expect(collectionPage.search(50)).rejects.toThrow("이전 조회 결과");
+    await page.close();
+  });
+
+  it("treats a search without a SAP request as empty only when no rows remain", async () => {
+    const page = await browser.newPage();
+    await page.setContent(`
+      <button ct="B">조회</button>
+      <table ct="ST"><tbody id="table-contentTBody"></tbody></table>
+      <script>window.application = { pendingRequest: false };</script>
+    `);
+    const collectionPage = new PlaywrightSapCollectionPage(page);
+
+    await expect(collectionPage.search(50)).resolves.toBe(false);
+    await page.close();
+  });
+
+  it("uses SAP's no-data message even when old table rows remain", async () => {
+    const page = await browser.newPage();
+    await page.route("**/sap/bc/webdynpro/**", async (route) => route.abort());
+    await page.setContent(`
+      <button ct="B" onclick="fetch('https://sap.test/sap/bc/webdynpro/search', { method: 'POST' }).catch(() => {})">조회</button>
+      <div>해당 테이블에 데이터가 없습니다.</div>
+      <table ct="ST"><tbody id="table-contentTBody">
+        <tr rr="1"><td cc="0">이전 조회 결과</td></tr>
+      </tbody></table>
+      <script>window.application = { pendingRequest: false };</script>
+    `);
+    const collectionPage = new PlaywrightSapCollectionPage(page);
+
+    await expect(collectionPage.search(1_000)).resolves.toBe(false);
+    await page.close();
+  });
+
+  it("rejects an unanswered SAP request without a no-data message", async () => {
+    const page = await browser.newPage();
+    await page.route("**/sap/bc/webdynpro/**", async (route) => route.abort());
+    await page.setContent(`
+      <button ct="B" onclick="fetch('https://sap.test/sap/bc/webdynpro/search', { method: 'POST' }).catch(() => {})">조회</button>
+      <table ct="ST"><tbody id="table-contentTBody">
+        <tr rr="1"><td cc="0">이전 조회 결과</td></tr>
+      </tbody></table>
+      <script>window.application = { pendingRequest: false };</script>
+    `);
+    const collectionPage = new PlaywrightSapCollectionPage(page);
+
+    await expect(collectionPage.search(1_000)).rejects.toThrow("결과를 확정할 수 없습니다");
+    await page.close();
+  });
+
+  // 인증 화면은 익명 화면에 없던 과목번호·강의시간과 함께 수업평가·학위유형·언어 열을 내려준다.
+  // 행 유효성은 과목번호로 판정하므로, 이 배치에서 과목번호가 비면 모든 행이 걸러진다.
+  it("reads every row of the authenticated course table", async () => {
+    const page = await browser.newPage();
+    const headers = [
+      "주관학과",
+      "전공",
+      "과목명",
+      "과목번호",
+      "분반",
+      "계획",
+      "수업계획서 영상",
+      "수업평가",
+      "이수구분",
+      "강의시간",
+      "담당교수",
+      "학위유형",
+      "학점/이론/실습",
+      "정원",
+      "PF/PN여부",
+      "강의유형",
+      "언어",
+      "수강자격",
+      "수강유의사항",
+    ];
+    const values = [
+      "리나시타교양대학",
+      "리나시타교양대학",
+      "공동체돌봄과시민참여",
+      "GE81102",
+      "001",
+      "",
+      "실행",
+      "",
+      "핵심교양",
+      "월 1교시 09:00-09:50",
+      "김미진",
+      "학사과정",
+      "3/3/0",
+      "44",
+      "",
+      "",
+      "",
+      "전체캠퍼스(의정부)",
+      "",
+    ];
+    await page.setContent(`
+      <table ct="ST"><thead><tr>
+        ${headers.map((header) => `<th><span ct="CP">${header}</span></th>`).join("")}
+      </tr></thead><tbody id="table-contentTBody">
+        <tr rr="1">${values.map((value, index) => `<td cc="${index}">${value}</td>`).join("")}</tr>
+      </tbody></table>
+    `);
+    const collectionPage = new PlaywrightSapCollectionPage(page);
+
+    const rows = await collectionPage.readRows();
+
+    expect(rows).toHaveLength(1);
+    expect(rows[0]?.[1]).toBe("GE81102");
+    expect(rows[0]?.[3]).toBe("월 1교시 09:00-09:50");
+    // 인증 화면에서 늘어난 열도 함께 읽어 둔다.
+    expect(rows[0]).toHaveLength(19);
+    expect(rows[0]?.[10]).toBe("전체캠퍼스(의정부)");
+    expect(rows[0]?.[17]).toBe("학사과정");
 
     await page.close();
   });

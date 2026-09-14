@@ -329,14 +329,20 @@ describe.skipIf(!existsSync(catalogPath))(
   "KoreanPeriodScheduleParser against collected SAP data",
   () => {
     const parser = new KoreanPeriodScheduleParser();
-    const catalog = JSON.parse(readFileSync(catalogPath, "utf8")) as {
-      courses: { schedule: { raw: string } }[];
-    };
-    const rawSchedules = catalog.courses
-      .map((course) => course.schedule.raw)
-      .filter((raw) => raw.trim().length > 0);
+
+    // describe 콜백은 건너뛰는 경우에도 실행된다. 카탈로그는 테스트가 실제로 돌 때 읽는다.
+    function readRawSchedules(): string[] {
+      const catalog = JSON.parse(readFileSync(catalogPath, "utf8")) as {
+        courses: { schedule: { raw: string } }[];
+      };
+
+      return catalog.courses
+        .map((course) => course.schedule.raw)
+        .filter((raw) => raw.trim().length > 0);
+    }
 
     it("fully parses at least 99% of the schedules SAP provides", () => {
+      const rawSchedules = readRawSchedules();
       const parsed = rawSchedules.filter(
         (raw) => parser.parse(raw).parseStatus === "PARSED",
       ).length;
@@ -346,6 +352,7 @@ describe.skipIf(!existsSync(catalogPath))(
     });
 
     it("never returns a parsed schedule without meetings", () => {
+      const rawSchedules = readRawSchedules();
       const emptyButParsed = rawSchedules.filter((raw) => {
         const schedule = parser.parse(raw);
         return schedule.parseStatus === "PARSED" && schedule.meetings.length === 0;
@@ -355,6 +362,7 @@ describe.skipIf(!existsSync(catalogPath))(
     });
 
     it("leaves no consecutive periods unmerged", () => {
+      const rawSchedules = readRawSchedules();
       const unmerged = rawSchedules.filter((raw) =>
         parser.parse(raw).meetings.some((left, index, meetings) =>
           meetings.some(

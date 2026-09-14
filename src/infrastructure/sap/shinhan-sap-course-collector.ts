@@ -23,6 +23,7 @@ const tabs = {
 } as const satisfies Record<string, TabDefinition>;
 
 const phaseCount = 6;
+const parallelJobAttempts = 3;
 
 // 어느 탭·학과에서 멈췄는지 담는다. 안쪽에서 붙인 맥락이 가장 구체적이므로 바깥에서 덮어쓰지 않는다.
 class CollectionFailure extends Error {
@@ -224,7 +225,21 @@ export class ShinhanSapCourseCollector implements CourseSource {
       this.pages.map(async (page) => {
         for (let index = next++; index < jobs.length; index = next++) {
           const job = jobs[index]!;
-          const result = await run(page, job);
+          let completed = false;
+          let result!: Result;
+          let lastError: unknown;
+
+          for (let attempt = 1; attempt <= parallelJobAttempts; attempt += 1) {
+            try {
+              result = await run(page, job);
+              completed = true;
+              break;
+            } catch (error) {
+              lastError = error;
+            }
+          }
+
+          if (!completed) throw lastError;
           results[index] = result;
           finished += 1;
           onFinished(job, result, finished, jobs.length);

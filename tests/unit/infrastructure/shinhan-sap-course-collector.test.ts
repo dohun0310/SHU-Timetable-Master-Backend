@@ -196,6 +196,24 @@ describe("ShinhanSapCourseCollector", () => {
     await expect(new ShinhanSapCourseCollector(page).collect()).rejects.toThrow("기초교양");
   });
 
+  it("retries a parallel unit after a transient SAP failure", async () => {
+    const expected = await new ShinhanSapCourseCollector(fakePage()).collect();
+    const page = fakePage();
+    const otherPage = fakePage();
+    const search = page.search;
+    let searches = 0;
+    page.search = vi.fn(async (timeoutMs?: number) => {
+      searches += 1;
+      if (searches === 4) throw new Error("temporary response timeout");
+      return search(timeoutMs);
+    });
+
+    const courses = await new ShinhanSapCourseCollector([page, otherPage]).collect();
+
+    expect(courses).toEqual(expected);
+    expect(searches).toBeGreaterThan(4);
+  });
+
   it("names the department it was collecting when it fails", async () => {
     const page = fakePage();
     let searches = 0;
@@ -207,6 +225,7 @@ describe("ShinhanSapCourseCollector", () => {
     });
 
     await expect(new ShinhanSapCourseCollector(page).collect()).rejects.toThrow("학과 A");
+    expect(page.search).toHaveBeenCalledTimes(8);
   });
 
   it("collects the same courses whether it runs on one page or on several", async () => {
