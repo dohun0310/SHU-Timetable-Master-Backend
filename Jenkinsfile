@@ -8,6 +8,7 @@ pipeline {
 
     parameters {
         string(name: 'HOST_PORT', defaultValue: '8971', description: 'Loopback port exposed to the reverse proxy')
+        string(name: 'DOCKER_NETWORK', defaultValue: 'shu-timetable-master', description: 'Existing Docker network shared with the frontend')
     }
 
     environment {
@@ -16,6 +17,7 @@ pipeline {
         APP_ENV_CREDENTIALS_ID = 'shu-timetable-master-backend-env'
         DEPLOY_BRANCH = 'main'
         HOST_PORT = "${params.HOST_PORT ?: '8971'}"
+        DOCKER_NETWORK = "${params.DOCKER_NETWORK ?: 'shu-timetable-master'}"
     }
 
     stages {
@@ -107,12 +109,14 @@ pipeline {
                                 set -eu
                                 RELEASE_IMAGE="${IMAGE_NAME}:${GIT_COMMIT}" \
                                 CANDIDATE_NAME="${CONTAINER_NAME}-candidate-${DOCKER_BUILD_TAG}" \
+                                DOCKER_NETWORK="${DOCKER_NETWORK}" \
                                 ./scripts/deploy-container.sh smoke
 
                                 RELEASE_IMAGE="${IMAGE_NAME}:${GIT_COMMIT}" \
                                 HOST_PORT="${HOST_PORT}" \
                                 CONTAINER_NAME="${CONTAINER_NAME}" \
                                 ROLLBACK_NAME="${CONTAINER_NAME}-rollback-${DOCKER_BUILD_TAG}" \
+                                DOCKER_NETWORK="${DOCKER_NETWORK}" \
                                 ./scripts/deploy-container.sh deploy
                             '''
                         }
