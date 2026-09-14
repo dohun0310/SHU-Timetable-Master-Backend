@@ -88,7 +88,7 @@ pipeline {
                     sh '''
                         set -eu
                         RELEASE_IMAGE="${IMAGE_NAME}:${GIT_COMMIT}" \
-                        CANDIDATE_NAME="${CONTAINER_NAME}-candidate-${BUILD_TAG}" \
+                        CANDIDATE_NAME="${CONTAINER_NAME}-candidate-${DOCKER_BUILD_TAG}" \
                         ./scripts/deploy-container.sh smoke
                     '''
                 }
@@ -106,13 +106,13 @@ pipeline {
                             sh '''
                                 set -eu
                                 RELEASE_IMAGE="${IMAGE_NAME}:${GIT_COMMIT}" \
-                                CANDIDATE_NAME="${CONTAINER_NAME}-candidate-${BUILD_TAG}" \
+                                CANDIDATE_NAME="${CONTAINER_NAME}-candidate-${DOCKER_BUILD_TAG}" \
                                 ./scripts/deploy-container.sh smoke
 
                                 RELEASE_IMAGE="${IMAGE_NAME}:${GIT_COMMIT}" \
                                 HOST_PORT="${HOST_PORT}" \
                                 CONTAINER_NAME="${CONTAINER_NAME}" \
-                                ROLLBACK_NAME="${CONTAINER_NAME}-rollback-${BUILD_TAG}" \
+                                ROLLBACK_NAME="${CONTAINER_NAME}-rollback-${DOCKER_BUILD_TAG}" \
                                 ./scripts/deploy-container.sh deploy
                             '''
                         }
@@ -124,7 +124,7 @@ pipeline {
 
     post {
         always {
-            sh 'docker rm -f "${CONTAINER_NAME}-candidate-${BUILD_TAG}" >/dev/null 2>&1 || true'
+            sh 'docker rm -f "${CONTAINER_NAME}-candidate-${DOCKER_BUILD_TAG}" >/dev/null 2>&1 || true'
             script {
                 def icon = [
                     SUCCESS: '✅',
