@@ -1,0 +1,96 @@
+#!/bin/sh
+# Nginx upstream 전환 전용 래퍼.
+#
+# Jenkins는 이 스크립트만 sudo로 실행할 수 있다. Nginx 설정 디렉터리에 대한
+# 쓰기 권한은 주지 않는다. 전달받은 값은 모두 이 안에서 검증하며, 검증을
+# 통과한 값으로만 upstream 파일을 다시 만든다.
+#
+# 사용법: nginx-switch-upstream <service> <port>
+
+set -eu
+
+UPSTREAM_DIR="${UPSTREAM_DIR:-/etc/nginx/upstream}"
+NGINX_BIN="${NGINX_BIN:-nginx}"
+
+usage() {
+  printf 'Usage: %s <service> <port>\n' "$0" >&2
+  printf '  service: %s 아래에 이미 존재하는 upstream 이름\n' "$UPSTREAM_DIR" >&2
+  printf '  port:    127.0.0.1에서 수신 중인 대상 포트\n' >&2
+}
+
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+  usage
+  exit 0
+fi
+
+if [ "$#" -ne 2 ]; then
+  usage
+  exit 2
+fi
+
+service="$1"
+port="$2"
+
+# 경로 조작과 설정 주입을 막기 위해 허용 문자를 제한한다.
+case "$service" in
+  *[!a-z0-9-]*|''|-*)
+    printf 'Invalid service name: %s\n' "$service" >&2
+    exit 2
+    ;;
+esac
+
+case "$port" in
+  *[!0-9]*|'')
+    printf 'Invalid port: %s\n' "$port" >&2
+    exit 2
+    ;;
+esac
+
+if [ "$port" -lt 1024 ] || [ "$port" -gt 65535 ]; then
+  printf 'Port out of range: %s\n' "$port" >&2
+  exit 2
+fi
+
+target="${UPSTREAM_DIR}/${service}.conf"
+
+# 대상 파일이 미리 존재해야 한다. 이 조건이 허용 서비스 목록 역할을 한다.
+# 오타가 난 이름으로 새 upstream이 조용히 생기는 것도 함께 막는다.
+if [ ! -f "$target" ]; then
+  printf 'Unknown service: %s (%s not found)\n' "$service" "$target" >&2
+  exit 2
+fi
+
+upstream_name="$(printf '%s' "$service" | tr '-' '_')"
+backup="${target}.bak"
+
+cp "$target" "$backup"
+
+restore() {
+  if [ -f "$backup" ]; then
+    mv "$backup" "$target"
+  fi
+}
+
+cleanup_failed() {
+  restore
+  "$NGINX_BIN" -t >/dev/null 2>&1 || true
+}
+
+printf 'upstream %s { server 127.0.0.1:%s; }\n' "$upstream_name" "$port" > "$target"
+
+if ! "$NGINX_BIN" -t; then
+  printf 'Configuration test failed; restoring previous upstream\n' >&2
+  cleanup_failed
+  exit 1
+fi
+
+if ! "$NGINX_BIN" -s reload; then
+  printf 'Reload failed; restoring previous upstream\n' >&2
+  cleanup_failed
+  "$NGINX_BIN" -s reload >/dev/null 2>&1 || true
+  exit 1
+fi
+
+rm -f "$backup"
+
+printf 'Upstream switched: %s -> 127.0.0.1:%s\n' "$service" "$port"
