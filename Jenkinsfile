@@ -6,12 +6,10 @@ pipeline {
         disableConcurrentBuilds()
     }
 
-    triggers {
-        pollSCM('* * * * *')
-    }
-
     parameters {
-        string(name: 'HOST_PORT', defaultValue: '8971', description: 'Loopback port exposed to the reverse proxy')
+        string(name: 'HOST_PORT', defaultValue: '8971', description: 'Primary loopback port exposed to Nginx')
+        string(name: 'ALT_PORT', defaultValue: '8981', description: 'Alternate loopback port used while switching')
+        string(name: 'DOCKER_NETWORK', defaultValue: 'shu-timetable-master', description: 'Existing Docker network shared with the frontend')
     }
 
     environment {
@@ -20,6 +18,8 @@ pipeline {
         APP_ENV_CREDENTIALS_ID = 'shu-timetable-master-backend-env'
         DEPLOY_BRANCH = 'main'
         HOST_PORT = "${params.HOST_PORT ?: '8971'}"
+        ALT_PORT = "${params.ALT_PORT ?: '8981'}"
+        DOCKER_NETWORK = "${params.DOCKER_NETWORK ?: 'shu-timetable-master'}"
     }
 
     stages {
@@ -32,6 +32,8 @@ pipeline {
 
                     env.CURRENT_BRANCH = branch
                     env.DEPLOY_TARGET = branch == env.DEPLOY_BRANCH ? 'true' : 'false'
+                    env.DOCKER_BUILD_TAG = (env.BUILD_TAG ?: "build-${env.BUILD_NUMBER}")
+                        .replaceAll(/[^A-Za-z0-9_.-]/, '-')
                 }
             }
         }
@@ -90,7 +92,7 @@ pipeline {
                     sh '''
                         set -eu
                         RELEASE_IMAGE="${IMAGE_NAME}:${GIT_COMMIT}" \
-                        CANDIDATE_NAME="${CONTAINER_NAME}-candidate-${BUILD_TAG}" \
+                        CANDIDATE_NAME="${CONTAINER_NAME}-candidate-${DOCKER_BUILD_TAG}" \
                         ./scripts/deploy-container.sh smoke
                     '''
                 }
@@ -108,13 +110,16 @@ pipeline {
                             sh '''
                                 set -eu
                                 RELEASE_IMAGE="${IMAGE_NAME}:${GIT_COMMIT}" \
-                                CANDIDATE_NAME="${CONTAINER_NAME}-candidate-${BUILD_TAG}" \
+                                CANDIDATE_NAME="${CONTAINER_NAME}-candidate-${DOCKER_BUILD_TAG}" \
+                                DOCKER_NETWORK="${DOCKER_NETWORK}" \
                                 ./scripts/deploy-container.sh smoke
 
                                 RELEASE_IMAGE="${IMAGE_NAME}:${GIT_COMMIT}" \
                                 HOST_PORT="${HOST_PORT}" \
+                                ALT_PORT="${ALT_PORT}" \
                                 CONTAINER_NAME="${CONTAINER_NAME}" \
-                                ROLLBACK_NAME="${CONTAINER_NAME}-rollback-${BUILD_TAG}" \
+                                NGINX_SERVICE="${CONTAINER_NAME}" \
+                                DOCKER_NETWORK="${DOCKER_NETWORK}" \
                                 ./scripts/deploy-container.sh deploy
                             '''
                         }
@@ -126,7 +131,7 @@ pipeline {
 
     post {
         always {
-            sh 'docker rm -f "${CONTAINER_NAME}-candidate-${BUILD_TAG}" >/dev/null 2>&1 || true'
+            sh 'docker rm -f "${CONTAINER_NAME}-candidate-${DOCKER_BUILD_TAG}" >/dev/null 2>&1 || true'
             script {
                 def icon = [
                     SUCCESS: '✅',
