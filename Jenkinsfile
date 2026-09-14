@@ -28,6 +28,8 @@ pipeline {
 
                     env.CURRENT_BRANCH = branch
                     env.DEPLOY_TARGET = branch == env.DEPLOY_BRANCH ? 'true' : 'false'
+                    env.DOCKER_BUILD_TAG = (env.BUILD_TAG ?: "build-${env.BUILD_NUMBER}")
+                        .replaceAll(/[^A-Za-z0-9_.-]/, '-')
                 }
             }
         }
