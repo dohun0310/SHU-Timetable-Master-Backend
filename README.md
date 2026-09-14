@@ -28,12 +28,19 @@ cp .env.example .env
 
 `yarn catalog:generate`와 `yarn build`에서 사용합니다.
 
-| 변수                   | 기본값 | 설명                                  |
-| ---------------------- | ------ | ------------------------------------- |
-| `TARGET_ACADEMIC_YEAR` | 필수   | 수집 대상 학년도(2000 이상의 정수)    |
-| `TARGET_SEMESTER`      | 필수   | `FIRST`, `SECOND`, `SUMMER`, `WINTER` |
-| `SAP_COURSE_URL`       | 필수   | 신한대학교 SAP 강좌 조회 URL          |
-| `PLAYWRIGHT_HEADLESS`  | `true` | `false`이면 브라우저 UI 표시          |
+| 변수                   | 기본값 | 설명                                   |
+| ---------------------- | ------ | -------------------------------------- |
+| `TARGET_ACADEMIC_YEAR` | 필수   | 수집 대상 학년도(2000 이상의 정수)     |
+| `TARGET_SEMESTER`      | 필수   | `FIRST`, `SECOND`, `SUMMER`, `WINTER`  |
+| `SAP_COURSE_URL`       | 필수   | 신한대학교 SAP 강좌 조회 URL           |
+| `SAP_USER`             | 필수   | SAP 로그온 계정                        |
+| `SAP_PASSWORD`         | 필수   | SAP 로그온 비밀번호                    |
+| `SAP_CONCURRENCY`      | `4`    | 학과 수집에 사용할 동시 페이지 수(1~8) |
+| `PLAYWRIGHT_HEADLESS`  | `true` | `false`이면 브라우저 UI 표시           |
+
+개설과목 조회 화면은 SAP 로그온을 요구합니다. `SAP_USER`와 `SAP_PASSWORD`가 비어 있으면 수집은 로그인 화면에서 멈추며, 설정 검증 단계에서 오류와 함께 중단됩니다.
+
+`SAP_CONCURRENCY`는 학교 서버에 부담을 주지 않도록 1부터 8 사이만 허용합니다.
 
 ### 서버 실행 시점
 
