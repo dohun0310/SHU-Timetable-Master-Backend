@@ -2,6 +2,9 @@ import type { Page } from "playwright";
 
 import type { SapCollectionPage, SapFilterOption } from "./sap-collection-page.js";
 
+const filterApplyAttempts = 3;
+const sapIdleSettleMs = 1_000;
+
 export class PlaywrightSapCollectionPage implements SapCollectionPage {
   private readonly filterLabels = new Map<string, string>();
 
@@ -66,6 +69,7 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
   }
 
   async selectFilterOption(filterIndex: number, key: string): Promise<void> {
+    await this.waitForSapIdle();
     const id = await this.findFilterInputId(filterIndex);
     if (!id) throw new Error(`SAP 필터 ${filterIndex}의 ID를 찾을 수 없습니다.`);
     const currentValue = await this.getComboValue(id);
@@ -78,58 +82,80 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
     }
     if (!label) throw new Error(`SAP 필터 옵션 ${key}의 라벨을 찾을 수 없습니다.`);
 
-    const possibleResponse = this.waitForSapResponse(30_000).catch(() => null);
-    await this.page.evaluate(
-      ({ comboId, itemKey, itemLabel }) => {
-        const app = (
-          window as unknown as {
-            application: {
-              lightspeed: {
-                oGetControlById(id: string): {
-                  setText(value: string): void;
-                  setValue(value: string): void;
+    let updatedValue: string | null = null;
+    for (let attempt = 1; attempt <= filterApplyAttempts; attempt += 1) {
+      const currentId = await this.findFilterInputId(filterIndex);
+      if (!currentId) throw new Error(`SAP 필터 ${filterIndex}의 ID를 찾을 수 없습니다.`);
+
+      const possibleResponse = this.waitForSapResponse(30_000).catch(() => null);
+      await this.page.evaluate(
+        ({ comboId, itemKey, itemLabel }) => {
+          const app = (
+            window as unknown as {
+              application: {
+                lightspeed: {
+                  oGetControlById(id: string): {
+                    setText(value: string): void;
+                    setValue(value: string): void;
+                  };
                 };
               };
-            };
-          }
-        ).application;
-        const combo = app.lightspeed.oGetControlById(comboId);
-        combo.setText(itemLabel);
-        combo.setValue(itemKey);
-      },
-      { comboId: id, itemKey: key, itemLabel: label },
-    );
-
-    await Promise.race([possibleResponse, this.page.waitForTimeout(1_000)]);
-    await this.waitForSapIdle();
-    const updatedId = await this.findFilterInputId(filterIndex);
-    const updatedValue = updatedId ? await this.getComboValue(updatedId) : null;
-    if (updatedValue !== key) {
-      throw new Error(
-        `SAP 필터 ${filterIndex}에 옵션 ${key}를 적용하지 못했습니다. 실제 값: ${updatedValue ?? "없음"}`,
+            }
+          ).application;
+          const combo = app.lightspeed.oGetControlById(comboId);
+          combo.setText(itemLabel);
+          combo.setValue(itemKey);
+        },
+        { comboId: currentId, itemKey: key, itemLabel: label },
       );
+
+      await Promise.race([possibleResponse, this.page.waitForTimeout(1_000)]);
+      await this.waitForSapIdle();
+      const updatedId = await this.findFilterInputId(filterIndex);
+      updatedValue = updatedId ? await this.getComboValue(updatedId) : null;
+      if (updatedValue === key) return;
     }
+
+    throw new Error(
+      `SAP 필터 ${filterIndex}에 옵션 ${key}를 ${filterApplyAttempts}회 적용하지 못했습니다. 실제 값: ${updatedValue ?? "없음"}`,
+    );
   }
 
   async search(timeoutMs = 2_000): Promise<boolean> {
+    await this.waitForSapIdle();
     const button = this.page
       .locator('[ct="B"]:visible')
       .filter({ hasText: /^(조회|Search)$/ })
       .first();
 
-    try {
-      await Promise.all([
-        this.waitForSapRequest(timeoutMs),
-        this.waitForSapResponse(30_000),
-        button.evaluate((element) => (element as HTMLElement).click()),
-      ]);
+    const request = this.waitForSapRequest(timeoutMs).catch(() => null);
+    await button.evaluate((element) => (element as HTMLElement).click());
+    const startedRequest = await request;
+
+    if (!startedRequest) {
       await this.waitForSapIdle();
-      return true;
-    } catch {
-      await this.waitForSapIdle();
-      // SAP는 조회 대상이 없을 때 Press 왕복 없이 현재 테이블을 빈 상태로 유지한다.
+      if (await this.hasVisibleRows()) {
+        throw new Error(
+          "SAP 조회 요청이 시작되지 않아 이전 조회 결과를 새 결과로 사용할 수 없습니다.",
+        );
+      }
       return false;
     }
+
+    const response = await Promise.race([
+      startedRequest.response(),
+      this.page.waitForTimeout(30_000).then(() => null),
+    ]);
+    if (!response) {
+      await this.waitForSapIdle();
+      if (await this.hasNoDataMessage()) return false;
+      throw new Error("SAP 조회 응답을 제한 시간 안에 받지 못해 결과를 확정할 수 없습니다.");
+    }
+    if (!response.ok())
+      throw new Error(`SAP 조회 요청이 HTTP ${response.status()}로 실패했습니다.`);
+
+    await this.waitForSapIdle();
+    return true;
   }
 
   async readRows(): Promise<string[][]> {
@@ -197,6 +223,21 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
     return rows.filter((cells) => (cells[1] ?? "").length > 0);
   }
 
+  private hasNoDataMessage(): Promise<boolean> {
+    return this.page
+      .getByText("해당 테이블에 데이터가 없습니다.", { exact: true })
+      .first()
+      .isVisible()
+      .catch(() => false);
+  }
+
+  private hasVisibleRows(): Promise<boolean> {
+    return this.page
+      .locator('[ct="ST"]:visible tbody[id$="-contentTBody"] tr[rr]')
+      .count()
+      .then((count) => count > 0);
+  }
+
   private async findFilterInputId(filterIndex: number): Promise<string | null> {
     return this.page.locator('input[ct="CB"]:visible').evaluateAll((elements, index) => {
       const globalContainer = elements[0]?.closest('[ct="ML"]');
@@ -238,11 +279,25 @@ export class PlaywrightSapCollectionPage implements SapCollectionPage {
   }
 
   private async waitForSapIdle(): Promise<void> {
-    await this.page.waitForTimeout(150);
-    await this.page.waitForFunction(() => {
-      const app = (window as unknown as { application?: { pendingRequest?: unknown } }).application;
-      return !app?.pendingRequest;
+    await this.page.evaluate(() => {
+      delete (window as unknown as { __shuSapIdleSince?: number }).__shuSapIdleSince;
     });
-    await this.page.waitForTimeout(200);
+    await this.page.waitForFunction(
+      (settleMs) => {
+        const runtime = window as unknown as {
+          application?: { pendingRequest?: unknown };
+          __shuSapIdleSince?: number;
+        };
+        if (runtime.application?.pendingRequest) {
+          delete runtime.__shuSapIdleSince;
+          return false;
+        }
+
+        runtime.__shuSapIdleSince ??= Date.now();
+        return Date.now() - runtime.__shuSapIdleSince >= settleMs;
+      },
+      sapIdleSettleMs,
+      { polling: 100, timeout: 30_000 },
+    );
   }
 }
