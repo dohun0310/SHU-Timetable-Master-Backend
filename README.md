@@ -22,15 +22,28 @@ cp .env.example .env
 
 ## 환경 변수
 
-| 변수                   | 기본값                   | 설명                                  |
-| ---------------------- | ------------------------ | ------------------------------------- |
-| `TARGET_ACADEMIC_YEAR` | 없음                     | 수집 대상 학년도(2000 이상의 정수)    |
-| `TARGET_SEMESTER`      | 없음                     | `FIRST`, `SECOND`, `SUMMER`, `WINTER` |
-| `SAP_COURSE_URL`       | 없음                     | 신한대학교 SAP 강좌 조회 URL          |
-| `PLAYWRIGHT_HEADLESS`  | `true`                   | `false`이면 브라우저 UI 표시          |
-| `CATALOG_PATH`         | `generated/catalog.json` | 서버가 시작 시 읽을 카탈로그 경로     |
-| `PORT`                 | `3000`                   | API 서버 포트                         |
-| `CORS_ORIGIN`          | `*`                      | 허용할 프론트엔드 Origin              |
+수집과 서버 실행은 서로 다른 변수를 사용합니다. 서버는 실행 중 SAP에 접근하지 않으므로 SAP 관련 변수가 필요 없습니다.
+
+### 수집 시점
+
+`yarn catalog:generate`와 `yarn build`에서 사용합니다.
+
+| 변수                   | 기본값 | 설명                                  |
+| ---------------------- | ------ | ------------------------------------- |
+| `TARGET_ACADEMIC_YEAR` | 필수   | 수집 대상 학년도(2000 이상의 정수)    |
+| `TARGET_SEMESTER`      | 필수   | `FIRST`, `SECOND`, `SUMMER`, `WINTER` |
+| `SAP_COURSE_URL`       | 필수   | 신한대학교 SAP 강좌 조회 URL          |
+| `PLAYWRIGHT_HEADLESS`  | `true` | `false`이면 브라우저 UI 표시          |
+
+### 서버 실행 시점
+
+`yarn start`에서 사용합니다.
+
+| 변수           | 기본값                   | 설명                              |
+| -------------- | ------------------------ | --------------------------------- |
+| `PORT`         | `3000`                   | API 서버 포트(1~65535)            |
+| `CATALOG_PATH` | `generated/catalog.json` | 서버가 시작 시 읽을 카탈로그 경로 |
+| `CORS_ORIGIN`  | `*`                      | 허용할 프론트엔드 Origin          |
 
 ## 데이터 생성과 빌드
 
