@@ -272,6 +272,15 @@ curl "http://localhost:3000/api/courses?size=1"
 
 이미지는 다단계 빌드를 사용하고 비 root `node` 사용자로 실행됩니다. Docker healthcheck는 `/api/health`를 확인합니다.
 
+컨테이너에는 다음 기본값이 적용되어 있어 별도로 지정하지 않아도 됩니다.
+
+| 변수           | 컨테이너 기본값               |
+| -------------- | ----------------------------- |
+| `NODE_ENV`     | `production`                  |
+| `PORT`         | `3000`                        |
+| `CATALOG_PATH` | `/app/generated/catalog.json` |
+| `CORS_ORIGIN`  | `*`                           |
+
 ### 외부 카탈로그 마운트
 
 이미지를 다시 만들지 않고 JSON만 교체하려면 읽기 전용으로 마운트할 수 있습니다.
