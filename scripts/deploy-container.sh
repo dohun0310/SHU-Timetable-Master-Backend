@@ -10,6 +10,19 @@ HOST_PORT="${HOST_PORT:-8971}"
 CONTAINER_PORT="${CONTAINER_PORT:-3000}"
 HEALTH_ATTEMPTS="${HEALTH_ATTEMPTS:-30}"
 HEALTH_INTERVAL="${HEALTH_INTERVAL:-2}"
+# 같은 네트워크에 속한 컨테이너끼리는 이름으로 서로를 찾는다.
+# 기본 브리지 네트워크에서는 이름 조회가 동작하지 않는다.
+DOCKER_NETWORK="${DOCKER_NETWORK:-}"
+
+# 네트워크는 호스트에 미리 만들어 둔 것을 사용한다.
+# 여기서 생성하면 이름이 잘못 전달되었을 때 새 네트워크가 조용히 생기고
+# 두 서비스가 서로 다른 네트워크에 속한 채 배포가 성공한 것처럼 끝난다.
+if [ -n "$DOCKER_NETWORK" ] \
+  && ! docker network inspect "$DOCKER_NETWORK" >/dev/null 2>&1; then
+  printf 'Docker network not found: %s\n' "$DOCKER_NETWORK" >&2
+  printf 'Create it on the host first: docker network create %s\n' "$DOCKER_NETWORK" >&2
+  exit 1
+fi
 
 if [ -n "${APP_ENV_FILE:-}" ] && [ ! -r "$APP_ENV_FILE" ]; then
   printf 'Environment file is not readable: %s\n' "$APP_ENV_FILE" >&2
