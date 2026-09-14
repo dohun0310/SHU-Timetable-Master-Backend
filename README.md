@@ -42,6 +42,8 @@ cp .env.example .env
 
 `SAP_CONCURRENCY`는 학교 서버에 부담을 주지 않도록 1부터 8 사이만 허용합니다.
 
+`.env`에는 SAP 계정 정보가 들어가므로 저장소에 포함하지 않습니다. Git에서 제외되며, 값은 `.env.example`을 복사해 로컬에서 채웁니다.
+
 ### 서버 실행 시점
 
 `yarn start`에서 사용합니다.
