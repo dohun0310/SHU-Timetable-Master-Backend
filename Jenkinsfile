@@ -26,14 +26,26 @@ pipeline {
         stage('Checkout') {
             steps {
                 deleteDir()
-                checkout scm
                 script {
-                    def branch = (env.BRANCH_NAME ?: env.GIT_BRANCH ?: '').replaceFirst(/^origin\//, '')
+                    def scmVars = checkout scm
+
+                    env.GIT_COMMIT = scmVars.GIT_COMMIT ?: sh(
+                        script: 'git rev-parse HEAD',
+                        returnStdout: true
+                    ).trim()
+
+                    def branch = (
+                        env.BRANCH_NAME
+                            ?: scmVars.GIT_BRANCH
+                            ?: env.GIT_BRANCH
+                            ?: ''
+                    ).replaceFirst(/^origin\//, '')
 
                     env.CURRENT_BRANCH = branch
                     env.DEPLOY_TARGET = branch == env.DEPLOY_BRANCH ? 'true' : 'false'
-                    env.DOCKER_BUILD_TAG = (env.BUILD_TAG ?: "build-${env.BUILD_NUMBER}")
-                        .replaceAll(/[^A-Za-z0-9_.-]/, '-')
+                    env.DOCKER_BUILD_TAG = (
+                        env.BUILD_TAG ?: "build-${env.BUILD_NUMBER}"
+                    ).replaceAll(/[^A-Za-z0-9_.-]/, '-')
                 }
             }
         }
