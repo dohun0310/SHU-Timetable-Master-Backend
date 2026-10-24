@@ -241,8 +241,9 @@ deploy() {
   printf 'Starting candidate on port %s\n' "$target_port"
 
   if ! run_container "$target_container" "$RELEASE_IMAGE" "$target_port" unless-stopped "" \
-    || ! wait_for_health "$target_container"; then
-    printf 'Candidate failed health check: %s\n' "$RELEASE_IMAGE" >&2
+    || ! wait_for_health "$target_container" \
+    || ! check_routes "$target_container"; then
+    printf 'Candidate failed health or route check: %s\n' "$RELEASE_IMAGE" >&2
     show_logs "$target_container"
     return 1
   fi
