@@ -16,6 +16,8 @@ HEALTH_ATTEMPTS="${HEALTH_ATTEMPTS:-30}"
 HEALTH_INTERVAL="${HEALTH_INTERVAL:-2}"
 # reload 직후에도 이전 워커가 남아 기존 연결을 처리한다.
 DRAIN_SECONDS="${DRAIN_SECONDS:-10}"
+# 스모크 테스트에서 실제 응답을 확인할 경로 목록(공백으로 구분)
+SMOKE_PATHS="${SMOKE_PATHS:-/api/meta /api/courses}"
 # 같은 사용자 정의 네트워크에 속한 컨테이너는 이름으로 서로를 찾을 수 있다.
 DOCKER_NETWORK="${DOCKER_NETWORK:-}"
 
@@ -95,13 +97,39 @@ show_logs() {
   docker logs "$1" 2>&1 || true
 }
 
+# 컨테이너 안에서 경로를 요청하고, 응답이 2xx가 아니거나 10초 안에 오지 않으면 실패한다.
+# smoke 후보는 호스트 포트를 공개하지 않으므로 컨테이너 안에서 요청한다.
+request_in_container() {
+  docker exec -e CHECK_PATH="$2" "$1" node -e '
+      const base = "http://127.0.0.1:" + process.env.PORT;
+      const url = base + process.env.CHECK_PATH;
+      fetch(url, { signal: AbortSignal.timeout(10000) })
+        .then((response) => {
+          console.log(response.status + " " + url);
+          if (!response.ok) process.exit(1);
+        })
+        .catch((error) => {
+          console.log(error.message + " " + url);
+          process.exit(1);
+        });
+    '
+}
+
+# 헬스체크는 서버 프로세스만 확인하므로, 주요 경로가 실제로 응답하는지 따로 확인한다.
+check_routes() {
+  for path in $SMOKE_PATHS; do
+    request_in_container "$1" "$path" || return 1
+  done
+}
+
 smoke_test() {
   docker rm -f "$CANDIDATE_NAME" >/dev/null 2>&1 || true
   trap 'docker rm -f "$CANDIDATE_NAME" >/dev/null 2>&1 || true' EXIT HUP INT TERM
 
   run_container "$CANDIDATE_NAME" "$RELEASE_IMAGE" false no ""
 
-  if ! wait_for_health "$CANDIDATE_NAME"; then
+  if ! wait_for_health "$CANDIDATE_NAME" \
+    || ! check_routes "$CANDIDATE_NAME"; then
     show_logs "$CANDIDATE_NAME"
     return 1
   fi
