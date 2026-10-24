@@ -220,6 +220,20 @@ describe("GET /api/health", () => {
     expect(response.body).toEqual({ status: "ok", courseCount: 3 });
     expect(response.headers["cache-control"]).toBe("no-store");
   });
+
+  it("fails health without caching when the catalog has no courses", async () => {
+    const emptyCatalog = catalogSchema.parse({
+      ...catalog,
+      meta: { ...catalog.meta, courseCount: 0 },
+      courses: [],
+    });
+    const emptyApp = createApp({ catalog: emptyCatalog, corsOrigin: "*" });
+
+    const response = await request(emptyApp).get("/api/health").expect(503);
+
+    expect(response.body).toEqual({ status: "unavailable", courseCount: 0 });
+    expect(response.headers["cache-control"]).toBe("no-store");
+  });
 });
 
 describe("removed full catalog endpoints", () => {
