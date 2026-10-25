@@ -60,22 +60,30 @@ export class TimetableGenerator {
     const constraints = input.constraints ?? {};
 
     // 요일과 시간대는 강좌 하나만 보고도 판정할 수 있다. 탐색 전에 미리 걸러 두면 가지치기가 줄어든다.
-    const baskets = input.baskets.map((basket) => ({
+    const filtered = input.baskets.map((basket, position) => ({
       ...basket,
+      position,
       courses: basket.courses.filter((course) => this.fitsTimeConstraints(course, constraints)),
     }));
 
-    if (baskets.some((basket) => basket.required && basket.courses.length === 0)) {
+    if (filtered.some((basket) => basket.required && basket.courses.length === 0)) {
       return { count: 0, truncated: false, timetables: [] };
     }
+
+    // 분반이 적은 바구니부터 고르면 충돌이 탐색 초반에 드러난다. 담은 순서대로 고르면
+    // 분반이 적은 바구니가 뒤에 있을 때 앞쪽 조합을 다 만들고서야 충돌을 알게 되어,
+    // 가능한 시간표가 있어도 탐색 상한에 먼저 걸린다. 분반 수가 같으면 담은 순서를 따른다.
+    const baskets = filtered.toSorted((left, right) => left.courses.length - right.courses.length);
 
     // limit + 1 개까지 모아 보면 상한에 걸렸는지를 정확히 알 수 있다.
     const wanted = input.limit + 1;
     const found: Course[][] = [];
+    // 고른 강좌와 그 강좌가 나온 바구니의 원래 위치. 응답은 사용자가 담은 바구니 순서로 돌려준다.
+    const chosen: { position: number; course: Course }[] = [];
     let visited = 0;
     let exhausted = true;
 
-    const search = (index: number, chosen: Course[], credits: number): void => {
+    const search = (index: number, credits: number): void => {
       if (found.length >= wanted || visited >= maxSearchNodes) {
         exhausted = false;
         return;
@@ -83,7 +91,11 @@ export class TimetableGenerator {
 
       if (index === baskets.length) {
         if (constraints.minCredits === undefined || credits >= constraints.minCredits) {
-          found.push([...chosen]);
+          found.push(
+            chosen
+              .toSorted((left, right) => left.position - right.position)
+              .map((pick) => pick.course),
+          );
         }
         return;
       }
@@ -106,20 +118,20 @@ export class TimetableGenerator {
 
         // 같은 강좌를 두 바구니에 담을 수 있다. 강의시간이 없는 강좌는 자기 자신과도 겹치지 않아
         // 충돌 검사만으로는 걸러지지 않으므로 id로 막는다.
-        if (chosen.some((picked) => picked.id === course.id)) continue;
-        if (chosen.some((picked) => this.conflict(picked, course))) continue;
+        if (chosen.some((picked) => picked.course.id === course.id)) continue;
+        if (chosen.some((picked) => this.conflict(picked.course, course))) continue;
 
-        chosen.push(course);
-        search(index + 1, chosen, credits + course.credits);
+        chosen.push({ position: basket.position, course });
+        search(index + 1, credits + course.credits);
         chosen.pop();
 
         if (found.length >= wanted) return;
       }
 
-      if (!basket.required) search(index + 1, chosen, credits);
+      if (!basket.required) search(index + 1, credits);
     };
 
-    search(0, [], 0);
+    search(0, 0);
 
     const truncated = !exhausted || found.length > input.limit;
     const timetables = found.slice(0, input.limit).map((courses) => this.toTimetable(courses));

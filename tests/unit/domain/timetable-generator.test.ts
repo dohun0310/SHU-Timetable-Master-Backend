@@ -328,6 +328,63 @@ describe("TimetableGenerator", () => {
     expect(result.truncated).toBe(true);
   });
 
+  it("finds the only timetable even when the basket with one section comes last", () => {
+    // 분반 10개짜리 바구니 6개는 서로 겹치지 않고, 마지막 분반만 토요일에 있다.
+    // 분반 1개짜리 바구니가 평일을 모두 차지하므로 가능한 시간표는 토요일 분반만 고른 1개다.
+    // 담은 순서대로 탐색하면 앞쪽 10^6 조합을 만드는 동안 탐색 상한에 걸려 결과가 빈다.
+    const days: Weekday[] = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY"];
+    const subjects = Array.from({ length: 6 }, (_, basketIndex) =>
+      basket(
+        `과목${basketIndex}`,
+        Array.from({ length: 10 }, (_, section) =>
+          course(`과목${basketIndex}`, 3, [
+            section === 9
+              ? meeting("SATURDAY", basketIndex + 1, basketIndex + 1)
+              : meeting(days[section % 5]!, basketIndex + 1, basketIndex + 1),
+          ]),
+        ),
+      ),
+    );
+    const blocker = basket("전공필수", [
+      course(
+        "전공필수",
+        3,
+        days.map((day) => meeting(day, 1, 15)),
+      ),
+    ]);
+
+    for (const baskets of [
+      [...subjects, blocker],
+      [blocker, ...subjects],
+    ]) {
+      const result = generate(baskets);
+
+      expect(result.count).toBe(1);
+      expect(result.truncated).toBe(false);
+    }
+  });
+
+  it("lists the courses of a timetable in the order the baskets were added", () => {
+    // 탐색은 분반이 적은 바구니부터 하지만, 응답은 사용자가 담은 순서를 따른다.
+    const many = basket(
+      "자료구조",
+      [1, 3, 5].map((period) => course("자료구조", 3, [meeting("MONDAY", period, period)])),
+    );
+    const single = basket("운영체제", [course("운영체제", 3, [meeting("TUESDAY", 1, 1)])]);
+    const optional = basket("교양", [course("교양", 2, [meeting("WEDNESDAY", 1, 1)])], false);
+
+    const result = generate([many, optional, single]);
+
+    // 선택 바구니를 비운 시간표 3개와 채운 시간표 3개가 나온다.
+    expect(result.count).toBe(6);
+    for (const timetable of result.timetables) {
+      const names = timetable.courses.map((picked) => picked.name);
+      expect(names).toEqual(
+        ["자료구조", "교양", "운영체제"].filter((name) => names.includes(name)),
+      );
+    }
+  });
+
   it("refuses a course whose schedule could not be fully parsed", () => {
     expect(() => generate([basket("드론", [unschedulable("드론프로젝트실습")])])).toThrow(
       UnschedulableCourseError,
